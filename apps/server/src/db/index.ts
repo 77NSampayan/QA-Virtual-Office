@@ -9,12 +9,17 @@ const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 
 export function openDb(file: string): DB {
   const db = new Database(file);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.pragma('busy_timeout = 5000');
-  db.pragma('synchronous = NORMAL');
-  migrate(db);
-  return db;
+  try {
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+    db.pragma('busy_timeout = 5000');
+    db.pragma('synchronous = NORMAL');
+    migrate(db);
+    return db;
+  } catch (err) {
+    db.close(); // an open handle would block recovery's rename on Windows
+    throw err;
+  }
 }
 
 export function migrate(db: DB): string[] {

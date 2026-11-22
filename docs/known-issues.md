@@ -10,19 +10,42 @@ Tracked so nothing from a checkpoint is forgotten. Update this file when an item
 | Leftover debug key-name log and throwaway test files from validation | Removed |
 | Rejected WebSocket upgrades left the socket open | Explicit close in `security.ts` |
 
-## Open — scheduled for 1B (agreed scope)
+## Fixed in Pass 1B
+| Item | Fix |
+|---|---|
+| Events sent while the server was down were dropped | Sanitized spool + exactly-once replay (`spool.ts`); validated with a real session |
+| Model column showed "—" | Filled from the opt-in status line (needs an interactive session, see below) |
+| UI/API reachable by any local process | One-time launch link + HttpOnly SameSite=Strict session cookie; Origin/CORP checks hold even for a hostile page on another port of the same host (browser-tested) |
+| `openDb` leaked its file handle when a file was not a database, so recovery's rename failed on Windows | Handle closed on failure (found by the recovery tests) |
+| A registered project's path typed into a prompt survived in opted-in content | Registered/excluded paths are masked as `<project>` inside the forwarder, any slash style/case |
+| Backups left `-wal`/`-shm` sidecar files (found on the live data folder) | Each backup is converted to a single file; pruning removes sidecars; test added |
+| Daily-backup age used file mtime | Uses the backup's own timestamp |
+
+## Verified by hand in interactive sessions (2026-11-22)
+| Item | Result |
+|---|---|
+| Real status-line snapshot | Confirmed: snapshots from real interactive sessions carry model, cost, context %, and 5-hour/7-day rate-limit usage; `sessions.model` is filled from them. (Headless `claude -p` never runs the status line, so this needs an interactive session) |
+| Permission prompt in default mode | Confirmed on a live session: PermissionRequest → awaiting_permission (rule 11), follow-up Notification ~6 s later (rule 12), exactly one notification. Reads never prompt in default mode; a write or command is needed |
+| Spool + replay after the server was stopped | Confirmed on real use: 22 events from 3 sessions replayed once, in order, 0 duplicates, 0 false notifications |
+
+## Open — not yet exercised
 | Item | Notes |
 |---|---|
-| Events sent while the server is down are dropped | Sanitized spool + replay, exactly once, order preserved |
-| Model column shows "—" | `SessionStart` has no `model` in these payloads; fill from the status line (opt-in) |
-| UI/API reachable by any local process of the same user | One-time launch-token cookie auth |
-| Retention, backups, redacted export, Settings UI, integrity check | As listed in the 1B plan |
+| Content-capture opt-in against the LIVE install | Covered by automated tests with the real forwarder and server in an isolated data folder. It was not re-run on the live install because enabling content capture there was blocked by the session's permission classifier and deliberately not worked around |
 
 ## Open — limitations to remember
 | Item | Notes |
 |---|---|
+| Session cookie is not port-isolated | Another localhost app could read it from the browser; it still cannot be used by other web origins or cookie-less clients. Documented in `docs/security.md` |
+| Same-user processes can read `token` | Inherent to a same-user file token; documented |
+| A wrapped status line runs through `cmd.exe` | Status lines written for Git Bash/PowerShell syntax may not run when wrapped; a failing wrapped command falls back to our compact line |
+| Our status-line command string assumes Git Bash | Claude Code uses Git Bash when present (true on this PC); PowerShell-only machines would need a different quoting |
+| Spool is capped at 5 MB | Events beyond the cap are dropped (logged as `failed:spool_full`) rather than growing without bound |
+| Replayed events older than the live state are recorded but not applied (`stale`) | By design: they cannot rewind a live status |
+| Backups contain project folder paths | Needed for restore; same current-user ACL. Exports never contain them |
 | Directory-symlink test skipped | This account lacks the privilege (EPERM); junctions are tested both ways |
-| Windows 10 not testable on this machine | Listed as open validation item for 1D |
+| Windows 10 not testable on this machine | Listed as an open validation item for 1D |
 | Fork payloads carry no parent session id | Forks show "parent unknown" (nothing inferred) |
-| Hooks only fire after Claude Code's workspace-trust prompt is accepted | Documented in `docs/security.md` |
+| Hooks only fire after Claude Code's workspace-trust prompt is accepted | Documented in `docs/security.md` and shown on the Settings screen |
 | Uninstall keeps edits made by others to `settings.json` | By design; observed `model` changing during validation |
+| Claude sign-in expiry notice | Claude Code printed "this sign-in ends between 2026-11-23 and 2026-11-26"; run `claude auth login` before then (not related to this app) |

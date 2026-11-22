@@ -26,6 +26,10 @@ export interface DataDirPaths {
   folderKeySecret: string;
   hooksDir: string;
   forwarder: string;
+  statuslineScript: string;
+  statuslineWrap: string;
+  spool: string;
+  exports: string;
   logs: string;
   backups: string;
   settingsBackups: string;
@@ -41,6 +45,10 @@ export function dataDirPaths(root: string): DataDirPaths {
     folderKeySecret: path.join(root, 'folder-key.secret'),
     hooksDir: path.join(root, 'hooks'),
     forwarder: path.join(root, 'hooks', 'forward.mjs'),
+    statuslineScript: path.join(root, 'hooks', 'statusline.mjs'),
+    statuslineWrap: path.join(root, 'statusline-wrap.json'),
+    spool: path.join(root, 'spool.jsonl'),
+    exports: path.join(root, 'exports'),
     logs: path.join(root, 'logs'),
     backups: path.join(root, 'backups'),
     settingsBackups: path.join(root, 'backups', 'claude-settings'),
@@ -141,7 +149,7 @@ export function bootstrapDataDir(root: string, opts: { applyAcl?: boolean } = {}
   fs.mkdirSync(root, { recursive: true });
   const applyAcl = opts.applyAcl ?? true;
   if (applyAcl) applyOwnerOnlyAcl(root);
-  for (const d of [paths.hooksDir, paths.logs, paths.backups, paths.settingsBackups]) {
+  for (const d of [paths.hooksDir, paths.logs, paths.backups, paths.settingsBackups, paths.exports]) {
     fs.mkdirSync(d, { recursive: true });
   }
   let token = fs.existsSync(paths.token) ? fs.readFileSync(paths.token, 'utf8').trim() : '';

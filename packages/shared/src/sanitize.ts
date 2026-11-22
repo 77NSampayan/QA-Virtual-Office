@@ -42,9 +42,34 @@ function safeStringify(v: unknown): string {
   }
 }
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Matchers for registered project roots and excluded paths in ANY slash style / case / doubled
+ * separators. Applied to opted-in content so a project's real path never lands in the database,
+ * exports or logs even when the user typed it into a prompt. Boundary-aware: `repo` does not match
+ * `repo-old`.
+ */
+export function pathMatchers(policy: CapturePolicy): RegExp[] {
+  const forms = new Set<string>();
+  for (const p of [...policy.projects, ...policy.excludes]) {
+    forms.add(p.lexical);
+    if (p.canonical) forms.add(p.canonical);
+  }
+  return [...forms]
+    .sort((a, b) => b.length - a.length)
+    .map(
+      (f) =>
+        new RegExp('(?<![A-Za-z0-9_-])' + f.split('\\').map(escapeRe).join('[\\\\/]+') + '(?![A-Za-z0-9_-])', 'gi'),
+    );
+}
+
+export const maskPaths = (text: string, matchers: RegExp[]) => matchers.reduce((t, re) => t.replace(re, '<project>'), text);
+
 function optInContent(raw: Record<string, unknown>, event: string, policy: CapturePolicy): OptInContent | undefined {
   const c: OptInContent = {};
-  const prep = (v: unknown) => truncate(redact(safeStringify(v)), CONTENT_MAX);
+  const matchers = pathMatchers(policy);
+  const prep = (v: unknown) => truncate(redact(maskPaths(safeStringify(v), matchers)), CONTENT_MAX);
   if (policy.capture.prompts && event === 'UserPromptSubmit' && typeof raw.prompt === 'string') {
     c.prompt = prep(raw.prompt);
   }

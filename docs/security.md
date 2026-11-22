@@ -17,7 +17,10 @@
 - **CSRF.** Mutating requests and `GET /api/projects/:id/path` require `X-QAVO-Client: 1`. Cross-origin pages can't send that header without a CORS preflight, which the server never answers.
 - **Rejected WebSocket upgrades.** The raw socket is closed explicitly. Upgraded sockets aren't tracked by the HTTP server.
 - **Response headers:** `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, CORP/COOP same-origin, `Cache-Control: no-store` on the API, and a strict CSP on HTML (self only, no eval, no framing).
-- **Pass 1B adds** the one-time launch-token cookie (HttpOnly, SameSite=Strict). Until then, any local process running as the same user can read GET endpoints. Ordinary GET responses never contain paths or captured content.
+- **Token routes** (`/api/hooks`, `/api/statusline`, `/api/auth/launch-nonce`) accept only requests with the hook token and **no `Origin` header**, and are rate-limited.
+- **UI session auth (1B).** Everything else under `/api` and `/ws` needs a session cookie (`/api/health` and `/api/auth/status` are open). The cookie is obtained from a **one-time launch link** (`/launch?k=<nonce>`: single use, 5 minutes) printed by `npm run start` or requested with `npm run launch` (which proves it is the same user by presenting the hook token). The cookie is `HttpOnly; SameSite=Strict; Path=/`, lasts 30 days, and only its SHA-256 is stored. `POST /api/auth/logout` revokes it.
+- **Hostile page on another port of the same host.** Cookies are not port-isolated, so such a page *is* sent the cookie (same-site). It is still stopped by the `Origin` allowlist (403), by the absence of CORS headers (the page cannot read responses), by `X-QAVO-Client` (a custom header forces a preflight that is never answered), by `Cross-Origin-Resource-Policy: same-origin`, and by the WebSocket origin check. This is exercised in a real browser (`e2e/b5-browser.test.ts`).
+- **Residual risk (documented).** Another *localhost application running as you* could read the cookie jar or the `token` file. That is inherent to same-user local software.
 
 ## Data directory
 
@@ -37,6 +40,8 @@
 5. Be idempotent: a second install is a no-op.
 6. Record an install manifest (which keys we created), so uninstall restores the file exactly. Uninstall removes only our handlers and the keys we created, then verifies the result.
 7. Use exec form with the absolute `node.exe` path and `args`, so no shell is involved. Handlers use `async: true` and `timeout: 10`.
+
+**Status line (opt-in, `npm run statusline:install` or Settings).** Written to `statusLine` in the same safe way (backup, atomic, manifest, verified). An existing status line is **wrapped**: its command is saved and run with the same input, its output is shown, and it is restored exactly on uninstall. The status-line script forwards only a numbers-only snapshot (model, context %, cost as reported by Claude Code, rate-limit percentages) using the same local project resolution and scope rules; it always exits 0 and has a hard deadline. Billing and subscription spend are not available through Claude Code and are never shown.
 
 **Handler guarantees.** The forwarder always exits 0, never writes to stdout, and has a 5 s hard deadline. It cannot approve, deny or block anything. Claude Code permissions are never bypassed.
 

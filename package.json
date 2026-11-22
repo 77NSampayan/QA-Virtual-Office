@@ -26,13 +26,21 @@
     "hooks:install": "npm run build:forwarder && tsx apps/server/src/cli/hooks.ts install",
     "hooks:uninstall": "tsx apps/server/src/cli/hooks.ts uninstall",
     "hooks:status": "tsx apps/server/src/cli/hooks.ts status",
-    "folder-key:rotate": "tsx apps/server/src/cli/folderKey.ts rotate"
+    "folder-key:rotate": "tsx apps/server/src/cli/folderKey.ts rotate",
+    "launch": "tsx apps/server/src/cli/launch.ts",
+    "db:backups": "tsx apps/server/src/cli/db.ts backups",
+    "db:check": "tsx apps/server/src/cli/db.ts check",
+    "db:restore": "tsx apps/server/src/cli/db.ts restore",
+    "e2e": "vitest run --config vitest.e2e.config.ts",
+    "statusline:install": "npm run build:forwarder && tsx apps/server/src/cli/hooks.ts statusline-install",
+    "statusline:uninstall": "tsx apps/server/src/cli/hooks.ts statusline-uninstall"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^24.19.2",
     "esbuild": "^0.25.12",
     "eslint": "^9.39.5",
+    "playwright-core": "^1.65.1",
     "prettier": "^3.10.1",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
@@ -42,5 +50,8 @@
   "allowScripts": {
     "better-sqlite3@12.11.1": true,
     "esbuild@0.25.12": true
+  },
+  "dependencies": {
+    "bun": "^1.4.5"
   }
 }

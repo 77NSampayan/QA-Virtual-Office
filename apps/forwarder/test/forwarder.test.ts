@@ -140,7 +140,7 @@ describe('forwarder process', () => {
     expect(r.stdout).toBe('');
     expect(r.ms).toBeLessThan(3000);
     const logs = dirText(dataDir);
-    expect(logs).toContain('failed:collector_unreachable');
+    expect(logs).toContain('spooled:collector_unreachable');
     for (const c of Object.values(CANARY)) expect(logs).not.toContain(c);
   });
 

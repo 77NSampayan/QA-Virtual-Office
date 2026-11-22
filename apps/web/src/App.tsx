@@ -3,7 +3,8 @@
  * Everything shown here comes from real Claude Code hook events via the local collector.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, ApiError, type AgentEvent, type IntegrationStatus, type Notification, type Project, type Session } from './api.ts';
+import { api, ApiError, unauthorizedListeners, type AgentEvent, type IntegrationStatus, type Notification, type Project, type Session } from './api.ts';
+import { Settings } from './Settings.tsx';
 
 const STATUS_LABEL: Record<string, string> = {
   idle: 'Idle',
@@ -85,7 +86,7 @@ function ProjectForm({ initial, onDone, onCancel }: { initial?: Project; onDone:
       </label>
       <label>
         Project folder (stored locally only, never shown in events)
-        <input value={path} onChange={(e) => setPath(e.target.value)} placeholder="C:\\path\\to\\repo" required spellCheck={false} />
+        <input value={path} onChange={(e) => setPath(e.target.value)} placeholder="C:\path\to\repo" required spellCheck={false} />
       </label>
       <label>
         Type
@@ -233,7 +234,16 @@ function Sessions({ sessions, selected, onSelect, now }: { sessions: Session[]; 
                 <StatusPill status={s.status} source={s.statusSource} />
                 {s.pendingPermissionTool && s.status === 'awaiting_permission' && <span className="muted"> {s.pendingPermissionTool}</span>}
               </td>
-              <td className="mono">{s.model ?? '—'}</td>
+              <td className="mono">
+                {s.usage?.modelName ?? s.model ?? '—'}
+                {s.usage?.contextUsedPct != null && <span className="muted"> · ctx {Math.round(s.usage.contextUsedPct)}%</span>}
+                {s.usage?.costUsd != null && (
+                  <span className="muted" title="Cost as reported by Claude Code's status line (not billing data)">
+                    {' '}
+                    · ${s.usage.costUsd.toFixed(2)}
+                  </span>
+                )}
+              </td>
               <td>
                 {s.origin === 'fork' ? (s.parentSessionId ? `fork of ${s.parentSessionId.slice(0, 8)}` : 'forked, parent unknown') : s.origin}
                 {!s.startObserved && <span className="muted"> (start not observed)</span>}
@@ -255,7 +265,51 @@ function Sessions({ sessions, selected, onSelect, now }: { sessions: Session[]; 
 }
 
 // ------------------------------------------------------------------------------------ app
+type AuthState = 'checking' | 'ok' | 'denied';
+
 export function App() {
+  const [auth, setAuth] = useState<AuthState>('checking');
+  const [tab, setTab] = useState<'console' | 'settings'>('console');
+
+  useEffect(() => {
+    const denied = () => setAuth('denied');
+    unauthorizedListeners.add(denied);
+    api
+      .authStatus()
+      .then((a) => setAuth(a.authenticated ? 'ok' : 'denied'))
+      .catch(() => setAuth('denied'));
+    return () => {
+      unauthorizedListeners.delete(denied);
+    };
+  }, []);
+
+  if (auth === 'checking') return <div className="app muted">Connecting…</div>;
+  if (auth === 'denied') {
+    return (
+      <div className="app">
+        <h1>QA Virtual Office</h1>
+        <section className="card" style={{ marginTop: 16 }}>
+          <h2>This browser is not signed in</h2>
+          <p>
+            For privacy, the dashboard only opens through a one-time link. Run <code>npm run launch</code> in the project folder (or restart the app) to get a fresh link that
+            signs this browser in.
+          </p>
+        </section>
+      </div>
+    );
+  }
+  return (
+    <Console
+      tab={tab}
+      setTab={setTab}
+      onSignOut={() => {
+        setAuth('denied');
+      }}
+    />
+  );
+}
+
+function Console({ tab, setTab, onSignOut }: { tab: 'console' | 'settings'; setTab: (t: 'console' | 'settings') => void; onSignOut: () => void }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -316,7 +370,15 @@ export function App() {
     <div className="app">
       <header>
         <h1>QA Virtual Office</h1>
-        <span className="muted">Pass 1A · real-data console</span>
+        <span className="muted">Pass 1B · real-data console</span>
+        <nav className="tabs">
+          <button className={tab === 'console' ? 'tab on' : 'tab'} onClick={() => setTab('console')}>
+            Console
+          </button>
+          <button className={tab === 'settings' ? 'tab on' : 'tab'} onClick={() => setTab('settings')}>
+            Settings
+          </button>
+        </nav>
         <span className={`pill ${wsState === 'live' ? 'st-completed' : 'st-failed'}`}>{wsState === 'live' ? 'live' : wsState}</span>
         {integration && (
           <span className="muted">
@@ -337,6 +399,9 @@ export function App() {
           ))}
         </div>
       )}
+      {tab === 'settings' ? (
+        <Settings onSignOut={onSignOut} />
+      ) : (
       <main>
         <div className="col">
           <Sessions sessions={sessions} selected={selected} onSelect={setSelected} now={now} />
@@ -358,6 +423,7 @@ export function App() {
           </section>
         </div>
       </main>
+      )}
       <footer className="muted">
         Local only · metadata-only capture (no prompts, tool inputs/outputs, file contents or paths) · "~" marks statuses inferred from tool activity
       </footer>

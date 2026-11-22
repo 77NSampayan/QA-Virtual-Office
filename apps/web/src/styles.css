@@ -63,3 +63,18 @@ button.danger { color: var(--red); }
 .ok { color: var(--green); margin: 8px 0 0; }
 footer { margin-top: 16px; font-size: 12px; }
 code { font-family: ui-monospace, Consolas, monospace; }
+
+.tabs { display: flex; gap: 4px; margin-left: auto; }
+.tab { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 4px 12px; }
+.tab.on { background: var(--cyan); color: #04121a; }
+.settings { display: grid; gap: 16px; max-width: 900px; }
+h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.check { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; }
+.check input { margin-top: 3px; }
+.plan { border: 1px solid var(--orange); border-radius: 8px; padding: 12px; margin-top: 12px; background: #1d1812; }
+pre { background: #0f1526; border: 1px solid var(--line); border-radius: 6px; padding: 8px; overflow-x: auto; white-space: pre-wrap; font-size: 12px; }
+pre.warn { border-color: var(--orange); color: #ffd9b0; }
+textarea { width: 100%; background: #0f1526; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: 12px ui-monospace, Consolas, monospace; }
+.btnlink { display: inline-block; background: transparent; color: var(--cyan); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; text-decoration: none; }
+label { font-size: 12px; color: var(--muted); }
+.row label { display: grid; gap: 4px; }

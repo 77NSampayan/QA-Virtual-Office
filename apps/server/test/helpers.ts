@@ -29,7 +29,7 @@ export interface TestEnv extends AppHandle {
   cleanup: () => Promise<void>;
 }
 
-export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean } = {}): Promise<TestEnv> {
+export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean; auth?: boolean; webDist?: string } = {}): Promise<TestEnv> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qavo-srv-'));
   const dataDir = path.join(root, 'data');
   const { paths, token } = bootstrapDataDir(dataDir, { applyAcl: opts.applyAcl ?? false });
@@ -42,8 +42,10 @@ export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean } = {
     token,
     port,
     logFile: path.join(paths.logs, 'server.log'),
-    webDist: path.join(root, 'no-web'),
+    webDist: opts.webDist ?? path.join(root, 'no-web'),
     claudeSettingsPath: settingsPath,
+    authRequired: opts.auth ?? false,
+    installOverrides: { nodePath: process.execPath },
   });
   handle.regeneratePolicy();
   if (opts.listen) await handle.app.listen({ host: '127.0.0.1', port });

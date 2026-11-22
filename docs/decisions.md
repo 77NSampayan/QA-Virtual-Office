@@ -19,6 +19,17 @@ Status key: **Approved** = confirmed by the product owner during planning (plan 
 | ADR-013 | Forked sessions get a **new session and robot identity**. Resumed sessions keep theirs. A parent link is stored only if the payload actually carries one. | Approved | Concurrent forks must be represented independently, and nothing is inferred. |
 | ADR-014 | Stack: npm workspaces, TypeScript, Fastify + `@fastify/websocket`, better-sqlite3 with plain-SQL migrations, React + Vite, Vitest. | Approved (rev 1) | Minimal dependencies that are well supported on Windows and Node 24. |
 
+## Pass 1B decisions (within the approved scope)
+
+| # | Decision | Rationale |
+|---|---|---|
+| ADR-015 | The forwarder spools **already-sanitized** events only (never raw stdin) to `spool.jsonl` (5 MB cap) on connection errors and 5xx/429; 4xx rejections are not spooled. The server claims the file by renaming it, applies events in timestamp order and relies on the event id for exactly-once. | Nothing is lost while the server is down and the privacy guarantees hold on disk. |
+| ADR-016 | A replayed event **older than the session's latest state is recorded but not applied** ("stale"); replay never raises notifications. | Replay must never rewind a live status or raise stale alerts. |
+| ADR-017 | Registered and excluded project paths are masked as `<project>` inside opted-in content, in the forwarder. | Users can type a project's path into a prompt; opt-in content must not reintroduce paths. |
+| ADR-018 | The status line is opt-in, **wraps** an existing one and restores it exactly; it forwards numbers only. | Usage figures come only from what Claude Code reports; the user's own status line must keep working. |
+| ADR-019 | Backups are single files (non-WAL) verified with `integrity_check`; a database failing `quick_check` is moved aside (never deleted) and the newest valid backup restored. | Self-contained backups; no silent data loss on corruption. |
+| ADR-020 | Enabling content capture or "All sessions" scope needs explicit confirmation in the API (not only the UI). | The privacy-widening choices cannot be flipped by an accidental request. |
+
 ## Notes recorded during Pass 1A
 
 - **npm 11 `allowScripts`.** Install scripts are allowed only for `better-sqlite3` (prebuilt native binary) and `esbuild` (platform binary). They're recorded in the root `package.json`.

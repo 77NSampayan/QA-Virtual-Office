@@ -225,7 +225,7 @@ describe('A11: path non-leakage + folder keys', () => {
   }
 
   it('All sessions scope: registering a PARENT folder re-links sessions that ran in subfolders', async () => {
-    await api('PUT', '/api/settings/scope', { scope: 'all' });
+    await api('PUT', '/api/settings/scope', { scope: 'all', confirm: true });
     const sub = path.join(projectDir, 'src');
     await post(sanitized('s-unreg', 'SessionStart', { source: 'startup', folderKeys: keysFor(sub) }));
     let s = (await api('GET', '/api/sessions/s-unreg')).body;
@@ -238,7 +238,7 @@ describe('A11: path non-leakage + folder keys', () => {
   });
 
   it('PATCH path also re-links matching unassigned sessions', async () => {
-    await api('PUT', '/api/settings/scope', { scope: 'all' });
+    await api('PUT', '/api/settings/scope', { scope: 'all', confirm: true });
     const target = path.join(env.root, 'Elsewhere');
     fs.mkdirSync(target);
     await post(sanitized('s-unreg2', 'SessionStart', { source: 'startup', folderKeys: keysFor(target) }));
@@ -249,7 +249,7 @@ describe('A11: path non-leakage + folder keys', () => {
   });
 
   it('rotation deletes the old key: old-kid sessions are never re-linked', async () => {
-    await api('PUT', '/api/settings/scope', { scope: 'all' });
+    await api('PUT', '/api/settings/scope', { scope: 'all', confirm: true });
     const oldKeys = keysFor(projectDir);
     await post(sanitized('s-old', 'SessionStart', { source: 'startup', folderKeys: oldKeys }));
     const before = fs.readFileSync(env.paths.folderKeySecret, 'utf8');

@@ -454,6 +454,30 @@ export interface SessionDTO {
   backgroundTasksRunning: number;
   pendingPermissionTool: string | null;
   drones: DroneState[];
+  /** Exactly what Claude Code's status line reported (if the status line is installed); null otherwise. */
+  usage: UsageDTO | null;
+}
+
+export interface UsageDTO {
+  modelName: string | null;
+  costUsd: number | null;
+  contextUsedPct: number | null;
+  fiveHourPct: number | null;
+  sevenDayPct: number | null;
+  updatedAt: string;
+}
+
+function usageFor(db: DB, sessionId: string): UsageDTO | null {
+  const r = db.prepare('SELECT * FROM statusline_snapshots WHERE session_id = ?').get(sessionId) as Record<string, unknown> | undefined;
+  if (!r) return null;
+  return {
+    modelName: (r.model_name as string) ?? null,
+    costUsd: (r.cost_usd as number) ?? null,
+    contextUsedPct: (r.context_used_pct as number) ?? null,
+    fiveHourPct: (r.five_hour_pct as number) ?? null,
+    sevenDayPct: (r.seven_day_pct as number) ?? null,
+    updatedAt: r.updated_at as string,
+  };
 }
 
 export function sessionDto(db: DB, sessionId: string): SessionDTO | null {
@@ -483,6 +507,7 @@ export function sessionDto(db: DB, sessionId: string): SessionDTO | null {
     backgroundTasksRunning: state.flags.backgroundTasksRunning,
     pendingPermissionTool: state.flags.pendingPermissionTool,
     drones: Object.values(state.drones),
+    usage: usageFor(db, sessionId),
   };
 }
 

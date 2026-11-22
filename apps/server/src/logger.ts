@@ -1,16 +1,19 @@
 /**
- * Server logging: pino (via Fastify) to <dataDir>/logs/server.log. No request/response bodies,
- * no URLs with ids for path endpoints, every string value redacted, path/cwd keys dropped.
+ * Server logging: pino (via Fastify) to <dataDir>/logs/server.log, size-rotated (5 files x 5 MB).
+ * No request/response bodies, no URLs with ids for path endpoints, every string value redacted,
+ * path/cwd keys dropped.
  */
 import { redact, redactObject } from '@qavo/shared';
 import type { FastifyServerOptions } from 'fastify';
+import { RotatingLog } from './rotatingLog.ts';
 
 export function loggerOptions(file: string | null, level = 'info'): FastifyServerOptions['logger'] {
   if (!file) return false;
+  const stream = new RotatingLog(file);
   return {
     level,
-    file,
     base: null,
+    stream,
     formatters: {
       log: (obj: Record<string, unknown>) => redactObject(obj),
     },

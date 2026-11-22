@@ -240,3 +240,37 @@ describe('resolveProject', () => {
     expect(resolveProject(undefined, pol, () => null)).toEqual({ kind: 'drop', reason: 'no_cwd' });
   });
 });
+
+describe('opt-in content: registered project paths are masked', () => {
+  const root = 'C:\\Work\\ClientAlphaSecret\\repo';
+  const pol = policy({
+    capture: { prompts: true, toolInputs: true, toolOutputs: true, notificationText: true },
+    projects: [{ id: 'proj_1', lexical: 'c:\\work\\clientalphasecret\\repo', canonical: 'd:\\real\\clientalpha-canonical\\repo' }],
+    excludes: [{ lexical: 'c:\\work\\private-zone', canonical: null }],
+  });
+
+  it.each([
+    [`edit ${root}\\src\\a.ts please`, 'edit <project>\\src\\a.ts please'],
+    ['edit c:/work/clientalphasecret/repo/src/a.ts', 'edit <project>/src/a.ts'],
+    ['EDIT C:\\WORK\\CLIENTALPHASECRET\\REPO', 'EDIT <project>'],
+    ['canon D:\\Real\\ClientAlpha-Canonical\\repo\\x', 'canon <project>\\x'],
+    ['see C:\\Work\\Private-Zone\\notes.txt', 'see <project>\\notes.txt'],
+    ['double slashes C:\\\\Work\\\\ClientAlphaSecret\\\\repo', 'double slashes <project>'],
+  ])('masks %s', (input, expected) => {
+    const ev = sanitizeHookPayload(base('UserPromptSubmit', { prompt: input }), project, pol, fixed)!;
+    expect(ev.content?.prompt).toBe(expected);
+  });
+
+  it('masks inside tool input/output, and does not touch similarly named siblings', () => {
+    const ev = sanitizeHookPayload(
+      base('PostToolUse', { tool_name: 'Read', tool_input: { file_path: root + '\\a.ts' }, tool_response: { out: `${root}\\b.ts` } }),
+      project,
+      pol,
+      fixed,
+    )!;
+    expect(ev.content?.toolInput).not.toContain('ClientAlphaSecret');
+    expect(ev.content?.toolResponse).not.toContain('ClientAlphaSecret');
+    const sibling = sanitizeHookPayload(base('UserPromptSubmit', { prompt: 'C:\\Work\\ClientAlphaSecret\\repo-old\\x' }), project, pol, fixed)!;
+    expect(sibling.content?.prompt).toContain('repo-old'); // not a boundary match for the project root
+  });
+});

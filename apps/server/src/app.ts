@@ -6,12 +6,14 @@ import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import type { WebSocket } from 'ws';
 import { projectRootKeys } from '@qavo/shared/folderKeys';
-import { ingest, ValidationError, type Broadcast } from './collector.ts';
+import { AuthStore, clearedCookie, COOKIE_NAME, parseCookies, sessionCookie } from './auth.ts';
+import { ingest, ingestStatusLine, ValidationError, type Broadcast } from './collector.ts';
 import { loadFolderKeySecret, rotateFolderKeySecret, type DataDirPaths } from './dataDir.ts';
 import type { DB } from './db/index.ts';
-import { hookStatus } from './installer.ts';
+import type { InstallContext } from './installer.ts';
 import { loggerOptions } from './logger.ts';
-import { currentScope, writePolicy } from './policyWriter.ts';
+import { writePolicy } from './policyWriter.ts';
+import { registerRoutes, type Runtime } from './routes.ts';
 import { registerSecurity } from './security.ts';
 import {
   createProject,
@@ -25,13 +27,12 @@ import {
   listSessions,
   relinkSessions,
   sessionDto,
-  setSetting,
   updateProject,
   type ProjectInput,
   type ProjectPatch,
 } from './store.ts';
 
-export const VERSION = '0.1.0-pass1a';
+export const VERSION = '0.2.0-pass1b';
 const WEB_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
 
 export interface AppOptions {
@@ -42,12 +43,21 @@ export interface AppOptions {
   logFile?: string | null;
   webDist?: string;
   claudeSettingsPath?: string;
+  /** Test hooks: override the installer context (forwarder sources, node path). */
+  installOverrides?: Partial<InstallContext>;
+  /** Require the session cookie for the UI API and WebSocket (default true). */
+  authRequired?: boolean;
+  recovery?: Runtime['recovery'];
 }
 
 export interface AppHandle {
   app: FastifyInstance;
   broadcast: Broadcast;
   regeneratePolicy: () => number;
+  auth: AuthStore;
+  runtime: Runtime;
+  /** One-time URL that logs a browser in (single use, 5 minutes). */
+  createLaunchUrl: () => string;
 }
 
 export async function buildApp(opts: AppOptions): Promise<AppHandle> {
@@ -60,7 +70,15 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
     forceCloseConnections: true,
   });
 
-  registerSecurity(app, { port, token: opts.token });
+  const auth = new AuthStore(db);
+  const authRequired = opts.authRequired ?? true;
+  const runtime: Runtime = { lastReplay: null, recovery: opts.recovery ?? null };
+
+  registerSecurity(app, {
+    port,
+    token: opts.token,
+    isAuthenticated: authRequired ? (req) => auth.verifyHeader(req.headers.cookie) : undefined,
+  });
   await app.register(fastifyWebsocket);
 
   const sockets = new Set<WebSocket>();
@@ -79,6 +97,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
     const secret = loadFolderKeySecret(paths);
     return secret ? relinkSessions(db, projectId, projectRootKeys(secret, forms)) : [];
   };
+  const createLaunchUrl = () => `http://127.0.0.1:${port}/launch?k=${auth.createLaunchNonce()}`;
 
   app.addHook('onResponse', async (req, reply) => {
     req.log.info({ m: req.method, route: req.routeOptions.url ?? 'unmatched', s: reply.statusCode, ms: Math.round(reply.elapsedTime) }, 'req');
@@ -93,6 +112,26 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
     return reply.code(500).send({ error: 'internal_error' });
   });
 
+  // ------------------------------------------------------------------ auth
+  app.get<{ Querystring: { k?: string } }>('/launch', async (req, reply) => {
+    if (!auth.consumeNonce(req.query.k)) {
+      return reply
+        .code(401)
+        .type('text/html')
+        .send('<!doctype html><title>QA Virtual Office</title><p>This launch link is invalid, expired or already used. Run <code>npm run launch</code> for a new one.</p>');
+    }
+    return reply.header('set-cookie', sessionCookie(auth.issueSession())).redirect('/', 302);
+  });
+  app.get('/api/auth/status', async (req) => ({
+    authRequired,
+    authenticated: !authRequired || auth.verifyHeader(req.headers.cookie),
+  }));
+  app.post('/api/auth/launch-nonce', async () => ({ url: createLaunchUrl() })); // token route: same-user processes only
+  app.post('/api/auth/logout', async (req, reply) => {
+    auth.revoke(parseCookies(req.headers.cookie)[COOKIE_NAME]);
+    return reply.header('set-cookie', clearedCookie).send({ ok: true });
+  });
+
   // ------------------------------------------------------------------ websocket
   app.get('/ws', { websocket: true }, (socket) => {
     sockets.add(socket);
@@ -103,10 +142,14 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
     });
   });
 
-  // ------------------------------------------------------------------ collector
+  // ------------------------------------------------------------------ collector (token routes)
   app.post('/api/hooks', { bodyLimit: 64 * 1024 }, async (req, reply) => {
     ingest(db, req.body, broadcast);
     return reply.code(204).send(); // always empty body: cannot be read as a hook decision
+  });
+  app.post('/api/statusline', { bodyLimit: 16 * 1024 }, async (req, reply) => {
+    ingestStatusLine(db, req.body, broadcast);
+    return reply.code(204).send();
   });
 
   // ------------------------------------------------------------------ read APIs
@@ -120,11 +163,6 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   });
   app.get<{ Params: { id: string } }>('/api/sessions/:id/events', async (req) => listEvents(db, req.params.id));
   app.get('/api/notifications', async () => listNotifications(db));
-  app.get('/api/integration/status', async () => ({
-    policyVersion: getSetting(db, 'policy_version', 0),
-    scope: currentScope(db),
-    hooks: hookStatus({ paths, settingsPath: opts.claudeSettingsPath }),
-  }));
 
   // ------------------------------------------------------------------ project mutations
   app.post<{ Body: ProjectInput }>('/api/projects', async (req, reply) => {
@@ -155,17 +193,19 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   // Edit form only (same-origin + X-QAVO-Client enforced in security.ts; excluded from logs).
   app.get<{ Params: { id: string } }>('/api/projects/:id/path', async (req) => getProjectPath(db, req.params.id));
 
-  // ------------------------------------------------------------------ settings
-  app.put<{ Body: { scope?: string } }>('/api/settings/scope', async (req) => {
-    const scope = req.body?.scope;
-    if (scope !== 'registered' && scope !== 'all') throw new HttpError(400, 'scope_invalid');
-    setSetting(db, 'scope', scope);
-    return { scope, policyVersion: regeneratePolicy() };
-  });
-
   app.post('/api/integration/folder-key/rotate', async () => {
     const next = rotateFolderKeySecret(paths);
     return { kid: next.kid, note: 'Sessions grouped under the previous key can no longer be re-linked to a path.' };
+  });
+
+  // ------------------------------------------------------------------ settings, integration, backups, export
+  registerRoutes(app, {
+    db,
+    paths,
+    version: VERSION,
+    installCtx: () => ({ paths, settingsPath: opts.claudeSettingsPath, ...opts.installOverrides }),
+    regeneratePolicy,
+    runtime,
   });
 
   // ------------------------------------------------------------------ static UI
@@ -182,5 +222,5 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
     );
   }
 
-  return { app, broadcast, regeneratePolicy };
+  return { app, broadcast, regeneratePolicy, auth, runtime, createLaunchUrl };
 }

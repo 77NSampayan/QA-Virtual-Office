@@ -1,9 +1,11 @@
 /**
  * Request validation (docs/security.md):
  *  - Host must be 127.0.0.1:<port> or localhost:<port>         (anti DNS-rebinding)
- *  - /api/hooks: no Origin header (browsers always send one), X-QAVO-Token required, rate limited
- *  - other /api + /ws: Origin, if present, must be the app origin; WS requires it
- *  - mutating requests and the project-path endpoint require X-QAVO-Client (forces CORS preflight,
+ *  - token routes (/api/hooks, /api/statusline, /api/auth/launch-nonce): no Origin header (browsers
+ *    always send one), X-QAVO-Token required, rate limited
+ *  - other /api + /ws: Origin, if present, must be the app origin (WS requires it); a valid session
+ *    cookie (from the one-time launch URL) is required except for /api/health and /api/auth/status
+ *  - mutating requests and sensitive endpoints require X-QAVO-Client (forces CORS preflight,
  *    which we never answer) — blocks CSRF
  */
 import crypto from 'node:crypto';
@@ -12,9 +14,15 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 export interface SecurityOptions {
   port: number;
   token: string;
+  /** Returns true when the request carries a valid session cookie. Omit to disable (tests only). */
+  isAuthenticated?: (req: FastifyRequest) => boolean;
   hooksRatePerSec?: number;
   hooksBurst?: number;
 }
+
+export const TOKEN_ROUTES = new Set(['/api/hooks', '/api/statusline', '/api/auth/launch-nonce']);
+const AUTH_EXEMPT = new Set(['/api/health', '/api/auth/status']);
+const SENSITIVE_GET = [/^\/api\/projects\/[^/]+\/path$/, /^\/api\/settings\/excludes$/];
 
 function timingSafeEq(a: string, b: string): boolean {
   const ab = Buffer.from(a);
@@ -50,7 +58,7 @@ export function registerSecurity(app: FastifyInstance, opts: SecurityOptions) {
     const url = req.url.split('?')[0]!;
     const origin = req.headers.origin;
 
-    if (url === '/api/hooks') {
+    if (TOKEN_ROUTES.has(url)) {
       if (origin !== undefined) return deny(req, reply, 403, 'origin_not_allowed');
       const tok = req.headers['x-qavo-token'];
       if (typeof tok !== 'string' || !timingSafeEq(tok, opts.token)) return deny(req, reply, 401, 'bad_token');
@@ -66,8 +74,9 @@ export function registerSecurity(app: FastifyInstance, opts: SecurityOptions) {
       if (origin !== undefined && !origins.has(origin)) return deny(req, reply, 403, 'origin_not_allowed');
       if (req.headers['sec-fetch-site'] === 'cross-site') return deny(req, reply, 403, 'cross_site');
       if (url === '/ws' && (origin === undefined || !origins.has(origin))) return deny(req, reply, 403, 'origin_required');
+      if (opts.isAuthenticated && !AUTH_EXEMPT.has(url) && !opts.isAuthenticated(req)) return deny(req, reply, 401, 'unauthorized');
       const mutating = !['GET', 'HEAD'].includes(req.method);
-      const sensitive = /^\/api\/projects\/[^/]+\/path$/.test(url);
+      const sensitive = SENSITIVE_GET.some((re) => re.test(url));
       if ((mutating || sensitive) && req.headers['x-qavo-client'] !== '1') return deny(req, reply, 403, 'client_header_required');
     }
   });
@@ -78,7 +87,7 @@ export function registerSecurity(app: FastifyInstance, opts: SecurityOptions) {
     reply.header('X-Frame-Options', 'DENY');
     reply.header('Cross-Origin-Resource-Policy', 'same-origin');
     reply.header('Cross-Origin-Opener-Policy', 'same-origin');
-    if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
+    if (req.url.startsWith('/api/') || req.url.startsWith('/launch')) reply.header('Cache-Control', 'no-store');
     const ct = String(reply.getHeader('content-type') ?? '');
     if (ct.startsWith('text/html')) {
       reply.header(

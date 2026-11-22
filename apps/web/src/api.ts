@@ -35,6 +35,14 @@ export interface Session {
   backgroundTasksRunning: number;
   pendingPermissionTool: string | null;
   drones: DroneState[];
+  usage: {
+    modelName: string | null;
+    costUsd: number | null;
+    contextUsedPct: number | null;
+    fiveHourPct: number | null;
+    sevenDayPct: number | null;
+    updatedAt: string;
+  } | null;
 }
 export interface AgentEvent {
   id: string;
@@ -65,9 +73,51 @@ export interface Notification {
   createdAt: string;
 }
 export interface IntegrationStatus {
+  version: string;
   policyVersion: number;
   scope: 'registered' | 'all';
-  hooks: { state: 'installed' | 'not_installed' | 'partial'; forwarderPresent: boolean; forwarderUpToDate: boolean };
+  hooks: {
+    state: 'installed' | 'not_installed' | 'partial';
+    forwarderPresent: boolean;
+    forwarderUpToDate: boolean;
+    statusLine: 'installed' | 'not_installed' | 'other_configured';
+    statusLineUpToDate: boolean;
+  };
+  lastEventByType: Record<string, string | null>;
+  lastHookEventAt: string | null;
+  spool: { pendingEvents: number; pendingBytes: number; lastReplay: { at: string; applied: number; duplicates: number; invalid: number } | null };
+  lastBackupAt: string | null;
+  recovery: { at: string; reason: string; restoredFrom: string | null } | null;
+  trustHint: string;
+}
+export interface Capture {
+  prompts: boolean;
+  toolInputs: boolean;
+  toolOutputs: boolean;
+  notificationText: boolean;
+}
+export interface SettingsState {
+  scope: 'registered' | 'all';
+  capture: Capture;
+  retention: { eventDays: number; contentDays: number };
+  excludeCount: number;
+}
+export interface PlanSummary {
+  kind: 'hooks' | 'statusLine';
+  action: 'install' | 'uninstall';
+  noChange: boolean;
+  willCreateBackup: boolean;
+  eventsAdded: string[];
+  eventsRemoved: string[];
+  wrapsExistingStatusLine: boolean;
+  restoresOriginalStatusLine: boolean;
+  handler: Record<string, unknown> | null;
+  warning: string | null;
+}
+export interface BackupInfo {
+  name: string;
+  bytes: number;
+  createdAt: string;
 }
 
 export class ApiError extends Error {
@@ -79,6 +129,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Fired when the server answers 401 (no valid session cookie). */
+export const unauthorizedListeners = new Set<() => void>();
+
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
@@ -88,7 +141,8 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new ApiError(res.status, data?.message ?? data?.error ?? `HTTP ${res.status}`);
+  if (res.status === 401) for (const f of unauthorizedListeners) f();
+  if (!res.ok) throw new ApiError(res.status, data?.error ?? `HTTP ${res.status}`);
   return data as T;
 }
 
@@ -104,4 +158,23 @@ export const api = {
   events: (sessionId: string) => call<AgentEvent[]>('GET', `/api/sessions/${encodeURIComponent(sessionId)}/events`),
   notifications: () => call<Notification[]>('GET', '/api/notifications'),
   integration: () => call<IntegrationStatus>('GET', '/api/integration/status'),
+  authStatus: () => call<{ authRequired: boolean; authenticated: boolean }>('GET', '/api/auth/status'),
+  logout: () => call<{ ok: true }>('POST', '/api/auth/logout'),
+  settings: () => call<SettingsState>('GET', '/api/settings'),
+  plan: (kind: string, action: string) => call<PlanSummary>('GET', `/api/integration/plan?kind=${kind}&action=${action}`),
+  hooks: (action: 'install' | 'uninstall', acknowledge = false) =>
+    call<{ changed: boolean; verified: boolean }>('POST', `/api/integration/hooks/${action}`, { acknowledge }),
+  statusLine: (action: 'install' | 'uninstall', acknowledge = false) =>
+    call<{ changed: boolean; verified: boolean; wrapped?: boolean }>('POST', `/api/integration/statusline/${action}`, { acknowledge }),
+  setScope: (scope: string, confirm = false) => call<{ scope: string }>('PUT', '/api/settings/scope', { scope, confirm }),
+  setPrivacy: (p: Partial<Capture> & { confirm?: boolean }) =>
+    call<{ capture: Capture; purgeOffered: string[] }>('PUT', '/api/settings/privacy', p),
+  purge: (kinds: string[] | 'all') => call<{ purged: number }>('POST', '/api/privacy/purge', { kinds }),
+  excludes: () => call<{ paths: string[] }>('GET', '/api/settings/excludes'),
+  setExcludes: (paths: string[]) => call<{ count: number }>('PUT', '/api/settings/excludes', { paths }),
+  setRetention: (r: { eventDays: number; contentDays: number }) => call<typeof r>('PUT', '/api/settings/retention', r),
+  runRetention: () => call<Record<string, number>>('POST', '/api/maintenance/retention'),
+  backups: () => call<BackupInfo[]>('GET', '/api/backups'),
+  createBackup: () => call<BackupInfo>('POST', '/api/backups'),
+  integrity: () => call<{ ok: boolean; detail: string }>('POST', '/api/integrity/check'),
 };

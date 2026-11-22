@@ -13,6 +13,8 @@ import { sanitizeHookPayload } from '@qavo/shared/sanitize';
 export const FORWARDER_VERSION = 1;
 export const POST_TIMEOUT_MS = 1500;
 const LOG_CAP_BYTES = 512 * 1024;
+const LOG_KEEP = 5;
+export const SPOOL_CAP_BYTES = 5 * 1024 * 1024;
 
 export interface ForwarderDeps {
   dataDir: string;
@@ -29,7 +31,9 @@ export type Decision =
   | 'dropped:invalid_payload'
   | 'dropped:fail_closed'
   | 'failed:no_token'
-  | 'failed:collector_unreachable'
+  | 'spooled:collector_unreachable'
+  | 'spooled:collector_error'
+  | 'failed:spool_full'
   | 'failed:collector_rejected';
 
 function readText(p: string): string | null {
@@ -44,13 +48,38 @@ export function appendCappedLog(file: string, line: string): void {
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     try {
-      if (fs.statSync(file).size > LOG_CAP_BYTES) fs.renameSync(file, file + '.1');
+      if (fs.statSync(file).size > LOG_CAP_BYTES) {
+        for (let i = LOG_KEEP - 1; i >= 1; i--) {
+          try {
+            fs.renameSync(`${file}.${i}`, `${file}.${i + 1}`);
+          } catch {
+            /* missing */
+          }
+        }
+        fs.renameSync(file, `${file}.1`);
+      }
     } catch {
       /* no file yet */
     }
     fs.appendFileSync(file, line + '\n', 'utf8');
   } catch {
     /* logging must never break the hook */
+  }
+}
+
+/** Appends one already-sanitized event as a JSON line. Returns false when the spool is full. */
+export function appendSpool(dataDir: string, event: unknown): boolean {
+  const file = path.join(dataDir, 'spool.jsonl');
+  try {
+    try {
+      if (fs.statSync(file).size >= SPOOL_CAP_BYTES) return false;
+    } catch {
+      /* no spool yet */
+    }
+    fs.appendFileSync(file, JSON.stringify(event) + '\n', 'utf8');
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -111,6 +140,12 @@ export async function runForwarder(deps: ForwarderDeps): Promise<Decision> {
   }
 
   const doFetch = deps.fetchImpl ?? fetch;
+  const spool = (reason: 'collector_unreachable' | 'collector_error'): Decision => {
+    // Only the sanitized event is spooled (never raw stdin); the server replays it exactly once.
+    const d: Decision = appendSpool(dataDir, event) ? `spooled:${reason}` : 'failed:spool_full';
+    logDecision(dataDir, eventName, sessionId, d);
+    return d;
+  };
   try {
     const res = await doFetch(`http://127.0.0.1:${policy.collector.port}/api/hooks`, {
       method: 'POST',
@@ -118,12 +153,14 @@ export async function runForwarder(deps: ForwarderDeps): Promise<Decision> {
       body: JSON.stringify(event),
       signal: AbortSignal.timeout(POST_TIMEOUT_MS),
     });
-    const d: Decision = res.ok ? 'sent' : 'failed:collector_rejected';
-    logDecision(dataDir, eventName, sessionId, d);
-    return d;
+    if (res.ok) {
+      logDecision(dataDir, eventName, sessionId, 'sent');
+      return 'sent';
+    }
+    if (res.status >= 500 || res.status === 429) return spool('collector_error');
+    logDecision(dataDir, eventName, sessionId, 'failed:collector_rejected');
+    return 'failed:collector_rejected';
   } catch {
-    // 1A: event dropped (sanitized spool + replay arrives in 1B)
-    logDecision(dataDir, eventName, sessionId, 'failed:collector_unreachable');
-    return 'failed:collector_unreachable';
+    return spool('collector_unreachable');
   }
 }
