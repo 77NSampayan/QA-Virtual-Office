@@ -205,8 +205,18 @@ export function updateProject(
 }
 
 export function deleteProject(db: DB, id: string): void {
-  const r = db.prepare('DELETE FROM projects WHERE id = ?').run(id);
-  if (r.changes === 0) throw new HttpError(404, 'project_not_found');
+  let changes = 0;
+  try {
+    changes = db.prepare('DELETE FROM projects WHERE id = ?').run(id).changes;
+  } catch (e) {
+    // requirements and test cases reference the project with RESTRICT: never delete QA records by accident
+    const err = e as { code?: string; message?: string };
+    if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY constraint failed/i.test(err.message ?? '')) {
+      throw new HttpError(409, 'project_has_qa_data', 'This project has requirements or test cases. Archive it instead of removing it.');
+    }
+    throw e;
+  }
+  if (changes === 0) throw new HttpError(404, 'project_not_found');
 }
 
 /** Edit-form only. */

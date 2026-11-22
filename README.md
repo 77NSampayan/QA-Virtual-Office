@@ -2,7 +2,7 @@
 
 A local-first, privacy-focused QA command center for Windows. Real Claude Code sessions show up as robots in a pixel-art QA office, alongside manual QA and test-automation workspaces.
 
-**Current checkpoint: Pass 1D, the Windows desktop app.** Real Claude Code sessions appear as animated pixel-art robots at their workstations, grouped into Manual QA and Automation departments, with Project Rooms, a QA Control Room, robot customization and a notification center. Everything shown comes from real hook events; unbuilt modules say so. `npm run desktop` opens it as a Windows app with a tray icon, toast notifications and start-with-Windows.
+**Current checkpoint: Pass 2A, Manual QA: requirements and test cases.** (Pass 1, the office and desktop app, is complete.) Real Claude Code sessions appear as animated pixel-art robots at their workstations, grouped into Manual QA and Automation departments, with Project Rooms, a QA Control Room, robot customization and a notification center. Everything shown comes from real hook events; unbuilt modules say so. `npm run desktop` opens it as a Windows app with a tray icon, toast notifications and start-with-Windows. **Manual QA** (sidebar) manages requirements, test cases with a human-only approval workflow, and traceability.
 
 ## Quick start (Windows, Node ≥ 22.12)
 

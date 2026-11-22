@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, unauthorizedListeners } from './api.ts';
 import { LiveProvider } from './live.tsx';
-import { Automation, ApiTesting, ManualQa, Metrics, TaskBoard, TestData } from './pages/Placeholders.tsx';
+import { Automation, ApiTesting, Metrics, TaskBoard, TestData } from './pages/Placeholders.tsx';
+import { ManualQa } from './pages/ManualQa.tsx';
 import { Control } from './pages/Control.tsx';
 import { Notifications } from './pages/Notifications.tsx';
 import { Overview } from './pages/Overview.tsx';

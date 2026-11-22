@@ -5,3 +5,4 @@ export * from './statusMachine.ts';
 export * from './redact.ts';
 export * from './statusline.ts';
 export * from './robots.ts';
+export * from './qa.ts';

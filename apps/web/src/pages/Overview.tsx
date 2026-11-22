@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { departmentOf, STATUS_COLOR, STATUS_LABEL, ALL_STATUSES } from '@qavo/shared';
+import { api } from '../api.ts';
 import { Floor } from '../Floor.tsx';
 import { useLive } from '../live.tsx';
 import { isActive, Kpi, needsAttention, useNow } from '../ui.tsx';
@@ -8,8 +10,12 @@ import { isActive, Kpi, needsAttention, useNow } from '../ui.tsx';
  * "No data yet" with the pass in which its source arrives (nothing is invented).
  */
 export function Overview() {
-  const { projects, sessions, robots, unread } = useLive();
+  const { projects, sessions, robots, unread, qaVersion } = useLive();
   const now = useNow();
+  const [qa, setQa] = useState<{ requirements: number; testCases: number; testCasesAwaitingReview: number } | null>(null);
+  useEffect(() => {
+    void api.qaSummary().then(setQa).catch(() => setQa(null));
+  }, [qaVersion]);
   const active = sessions.filter((s) => isActive(s, now));
   const attention = sessions.filter((s) => needsAttention(s) && now - s.lastEventAt <= 24 * 3600_000);
   const deptOf = (id: string | undefined) => (id ? departmentOf(robots.find((r) => r.id === id)?.role ?? '') : 'manual');
@@ -29,6 +35,7 @@ export function Overview() {
         <Kpi id="writing" label="Writing test cases (inferred)" value={active.filter((s) => s.status === 'writing_tests').length} how="Active sessions currently editing test-like files. Inferred from tool activity, not stated by Claude Code." />
         <Kpi id="running" label="Running test executions (inferred)" value={active.filter((s) => s.status === 'executing_tests').length} how="Active sessions currently running a test command. Inferred from tool activity." />
         <Kpi id="unread" label="Unread notifications" value={unread} how="Notifications you have not marked as read." />
+        <Kpi id="review" label="Test cases awaiting review" value={qa?.testCasesAwaitingReview ?? 0} how="Non-archived test cases submitted for review and waiting for you to approve or reject them." />
         <Kpi id="passed" label="Passed tests" nodata="Arrives with test execution tracking (Pass 2/3)" how="" />
         <Kpi id="failed" label="Failed tests" nodata="Arrives with test execution tracking (Pass 2/3)" how="" />
         <Kpi id="blocked" label="Blocked tests" nodata="Arrives with test execution tracking (Pass 2)" how="" />

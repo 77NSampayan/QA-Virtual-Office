@@ -51,6 +51,16 @@ Status key: **Approved** = confirmed by the product owner during planning (plan 
 | ADR-030 | The UI may only talk to the local server: the Electron session cancels every request to another origin, denies every permission and blocks navigation and `window.open`. | Defence in depth beyond the CSP. |
 | ADR-031 | A test seam exists only when `QAVO_E2E=1` is set: read-only state plus a toast-click simulator on a main-process global, unreachable from the page. | Tray state and OS toast clicks cannot otherwise be observed or driven by automation. |
 
+## Pass 2 decisions
+
+| # | Decision | Rationale |
+|---|---|---|
+| ADR-032 | **Pass 2 is split into 2A requirements + test cases, 2B execution + evidence, 2C defects + exploratory + task board, 2D agent integration (MCP).** Each checkpoint is validated and reported before the next. *Approved by the product owner.* | Same incremental discipline as Pass 1. |
+| ADR-033 | **Only a signed-in human can approve or reject test cases, mark tests PASSED or close defects.** Every QA service function takes an `actor` (human / agent / system) and enforces this itself; the database backs it with a CHECK constraint (an approval can only be recorded as made by a human). HTTP routes under `/api` are always the human actor; agents will use separate, limited routes with their own token (2D). *Approved by the product owner.* | An AI agent must never be able to certify its own work. Enforcing it in the service and the database means no route or UI bug can bypass it. |
+| ADR-034 | History tables are **append-only** (triggers) and QA tables reference projects with **RESTRICT**: a project with QA records cannot be removed, only archived. | Audit trail and no silent loss of test assets. |
+| ADR-035 | Ambiguity checks are **deterministic word lists, not AI**, raise flags for human review (never verdicts), and never re-raise a dismissed hint. Requirement import is a deterministic parser with a preview. | Predictable, testable and honest about what it can detect. AI assistance comes through the human-supervised agent path in 2D. |
+| ADR-036 | Coverage is always shown with numerator, denominator and formula; with a zero denominator it shows "—". A test case's execution status is NOT RUN until executions exist (2B). | No invented or misleading quality figures. |
+
 ## Notes recorded during Pass 1A
 
 - **npm 11 `allowScripts`.** Install scripts are allowed only for `better-sqlite3` (prebuilt native binary) and `esbuild` (platform binary). They're recorded in the root `package.json`.

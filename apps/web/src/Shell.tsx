@@ -34,7 +34,7 @@ export function Shell({ children }: { children: ReactNode }) {
     {
       title: 'Departments',
       items: [
-        { to: '/manual', label: 'Manual QA', soon: 'Pass 2' },
+        { to: '/manual', label: 'Manual QA' },
         { to: '/automation', label: 'Test Automation', soon: 'Pass 3' },
         { to: '/api-testing', label: 'API Testing', soon: 'Pass 3' },
         { to: '/test-data', label: 'Test Data', soon: 'Pass 3' },

@@ -168,3 +168,17 @@ pre.warn { border-color: var(--orange); color: #ffd9b0; }
 @media (prefers-reduced-motion: reduce) {
   .sidenav { transition: none; }
 }
+
+/* ---------------------------------------------------------------- manual QA */
+.detail { padding: 8px 4px 12px; display: grid; gap: 8px; }
+.detail h3 { margin: 10px 0 4px; }
+.fields { display: grid; grid-template-columns: minmax(110px, 170px) minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+.fields dt { color: var(--muted); font-size: 12px; text-transform: uppercase; padding-top: 2px; }
+.fields dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.fields ol { margin: 0; padding-left: 20px; }
+.req-picker { border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-height: 180px; overflow: auto; margin: 0; }
+.req-picker legend { color: var(--muted); font-size: 12px; padding: 0 4px; }
+.toolbar select, .toolbar input { padding: 5px 8px; }
+@media (max-width: 760px) { .fields { grid-template-columns: minmax(0, 1fr); } .fields dt { padding-top: 8px; } }
+
+.row label.check, .toolbar label.check { display: flex; flex-direction: row; align-items: center; }

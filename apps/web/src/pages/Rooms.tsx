@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type ActivityItem, type ProjectRoom } from '../api.ts';
+import { api, ApiDetailError, type ActivityItem, type ProjectRoom } from '../api.ts';
 import { Floor } from '../Floor.tsx';
 import { useLive } from '../live.tsx';
 import { navigate } from '../router.ts';
@@ -160,9 +160,13 @@ export function ProjectRoomView({ id }: { id: string }) {
               className="ghost danger"
               onClick={async () => {
                 if (confirm(`Remove project "${project.alias}"? Its sessions stay in history as unassigned.`)) {
-                  await api.deleteProject(id);
-                  await refresh();
-                  navigate('/projects');
+                  try {
+                    await api.deleteProject(id);
+                    await refresh();
+                    navigate('/projects');
+                  } catch (err) {
+                    setMsg(err instanceof ApiDetailError && err.code === 'project_has_qa_data' ? `Not removed: ${err.detail}` : String(err));
+                  }
                 }
               }}
             >
@@ -170,7 +174,7 @@ export function ProjectRoomView({ id }: { id: string }) {
             </button>
           </div>
         )}
-        {msg && <p className="ok">{msg}</p>}
+        {msg && <p className={msg.startsWith('Not removed') || msg.startsWith('Error') ? 'error' : 'ok'}>{msg}</p>}
       </section>
     </div>
   );

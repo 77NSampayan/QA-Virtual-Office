@@ -1,19 +1,6 @@
 import { ComingSoon } from '../ui.tsx';
 
 /** Modules that are specified but not built yet. They say so plainly and show no fake data. */
-export const ManualQa = () => (
-  <ComingSoon
-    title="Manual QA Department"
-    pass="Pass 2"
-    intro="Requirements analysis, test case management, manual execution tracking, exploratory testing and defect management."
-    items={[
-      'Requirements: BRD/FSD/user-story review with ambiguity and gap flags for human review',
-      'Test cases with techniques (BVA, equivalence partitioning, decision tables, state transition…) and a human-only approval step',
-      'Execution board: NOT RUN, IN PROGRESS, PASSED, FAILED, BLOCKED, NOT APPLICABLE, NEEDS REVIEW — human vs agent-assisted clearly distinguished',
-      'Defects with a validated state flow (no automatic closing)',
-    ]}
-  />
-);
 export const TaskBoard = () => (
   <ComingSoon
     title="QA Task Board"

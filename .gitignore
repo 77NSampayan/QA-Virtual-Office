@@ -9,3 +9,4 @@ playwright-report/
 *.db-*
 .env
 .env.*
+frd-and-brd/

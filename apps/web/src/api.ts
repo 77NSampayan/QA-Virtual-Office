@@ -149,12 +149,143 @@ export interface BackupInfo {
   createdAt: string;
 }
 
+export interface QaFlag {
+  id: string;
+  requirementId: string;
+  type: string;
+  note: string;
+  relatedRequirementId: string | null;
+  raisedBy: string;
+  status: string;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolvedNote: string | null;
+}
+export interface QaRequirement {
+  id: string;
+  projectId: string;
+  ref: string;
+  title: string;
+  text: string;
+  source: string;
+  kind: string;
+  reviewStatus: string;
+  authoredBy: string;
+  openFlags: number;
+  testCaseCount: number;
+  approvedTestCaseCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface QaRequirementDetail extends QaRequirement {
+  flags: QaFlag[];
+  testCases: Array<{ id: string; code: string; title: string; status: string }>;
+}
+export interface QaTestCase {
+  id: string;
+  projectId: string;
+  code: string;
+  scenario: string;
+  title: string;
+  description: string;
+  preconditions: string;
+  steps: string[];
+  testData: string;
+  expectedResult: string;
+  priority: string;
+  testType: string;
+  assignedTester: string;
+  requirementIds: string[];
+  requirementRefs: string[];
+  status: 'draft' | 'in_review' | 'approved' | 'rejected';
+  authoredBy: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  rejectionNote: string;
+  version: number;
+  executionStatus: string;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface QaHistory {
+  id: string;
+  at: string;
+  actor: string;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  note: string;
+  changes: Record<string, unknown>;
+}
+export interface QaTestCaseDetail extends QaTestCase {
+  requirements: Array<{ id: string; ref: string; title: string }>;
+  history: QaHistory[];
+}
+export interface QaRatio {
+  numerator: number;
+  denominator: number;
+  percent: number | null;
+}
+export interface QaTraceability {
+  rows: Array<{
+    requirementId: string;
+    ref: string;
+    title: string;
+    reviewStatus: string;
+    openFlags: number;
+    testCases: Array<{ id: string; code: string; title: string; status: string }>;
+    covered: 'approved' | 'unapproved' | 'none';
+  }>;
+  summary: {
+    requirements: number;
+    testCases: number;
+    requirementsWithApprovedTestCase: QaRatio;
+    requirementsWithAnyTestCase: QaRatio;
+    untracedTestCases: number;
+    formulas: { approved: string; any: string };
+  };
+}
+export interface QaImportResult {
+  dryRun: boolean;
+  wouldCreate: string[];
+  created: string[];
+  skippedExisting: string[];
+  unparsed: string[];
+  duplicates: string[];
+  byPrefix: Record<string, number>;
+}
+export interface QaTestCaseInput {
+  scenario?: string;
+  title: string;
+  description?: string;
+  preconditions?: string;
+  steps?: string[];
+  testData?: string;
+  expectedResult?: string;
+  priority?: string;
+  testType?: string;
+  assignedTester?: string;
+  requirementIds?: string[];
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
     public code: string,
   ) {
     super(code);
+  }
+}
+
+/** The server's error code plus its message (for validation details such as missing approval fields). */
+export class ApiDetailError extends ApiError {
+  constructor(
+    status: number,
+    code: string,
+    public detail: string,
+  ) {
+    super(status, code);
   }
 }
 
@@ -171,7 +302,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (res.status === 401) for (const f of unauthorizedListeners) f();
-  if (!res.ok) throw new ApiError(res.status, data?.error ?? `HTTP ${res.status}`);
+  if (!res.ok) throw new ApiDetailError(res.status, data?.error ?? `HTTP ${res.status}`, data?.message ?? '');
   return data as T;
 }
 
@@ -212,5 +343,27 @@ export const api = {
   activity: (limit = 50, projectId?: string) =>
     call<ActivityItem[]>('GET', `/api/activity?limit=${limit}${projectId ? `&projectId=${encodeURIComponent(projectId)}` : ''}`),
   room: (id: string) => call<ProjectRoom>('GET', `/api/projects/${id}/room`),
+  // ---- Manual QA
+  requirements: (pid: string) => call<QaRequirement[]>('GET', `/api/projects/${pid}/requirements`),
+  requirement: (id: string) => call<QaRequirementDetail>('GET', `/api/requirements/${id}`),
+  createRequirement: (pid: string, b: { ref: string; title: string; text?: string; source?: string; kind?: string }) =>
+    call<QaRequirement>('POST', `/api/projects/${pid}/requirements`, b),
+  updateRequirement: (id: string, b: Partial<{ ref: string; title: string; text: string; source: string; kind: string; reviewStatus: string }>) =>
+    call<QaRequirement>('PATCH', `/api/requirements/${id}`, b),
+  deleteRequirement: (id: string) => call<{ ok: true }>('DELETE', `/api/requirements/${id}`),
+  importRequirements: (pid: string, b: { text: string; source?: string; kind?: string; onlyPrefixes?: string[]; dryRun?: boolean }) =>
+    call<QaImportResult>('POST', `/api/projects/${pid}/requirements/import`, b),
+  runChecks: (pid: string) => call<{ requirementsChecked: number; raised: number }>('POST', `/api/projects/${pid}/requirements/checks`),
+  raiseFlag: (rid: string, b: { type: string; note: string; relatedRequirementId?: string }) => call<QaFlag>('POST', `/api/requirements/${rid}/flags`, b),
+  resolveFlag: (id: string, b: { status: 'resolved' | 'dismissed'; note?: string }) => call<QaFlag>('PATCH', `/api/flags/${id}`, b),
+  testCases: (pid: string, f: Record<string, string> = {}) =>
+    call<QaTestCase[]>('GET', `/api/projects/${pid}/test-cases?${new URLSearchParams(Object.entries(f).filter(([, v]) => v !== '')).toString()}`),
+  testCase: (id: string) => call<QaTestCaseDetail>('GET', `/api/test-cases/${id}`),
+  createTestCase: (pid: string, b: QaTestCaseInput) => call<QaTestCase>('POST', `/api/projects/${pid}/test-cases`, b),
+  updateTestCase: (id: string, b: Partial<QaTestCaseInput>) => call<QaTestCase>('PATCH', `/api/test-cases/${id}`, b),
+  transitionTestCase: (id: string, to: string, note = '') => call<QaTestCase>('POST', `/api/test-cases/${id}/transition`, { to, note }),
+  archiveTestCase: (id: string, archived: boolean) => call<QaTestCase>('POST', `/api/test-cases/${id}/archive`, { archived }),
+  traceability: (pid: string) => call<QaTraceability>('GET', `/api/projects/${pid}/traceability`),
+  qaSummary: () => call<{ requirements: number; testCases: number; testCasesAwaitingReview: number }>('GET', '/api/qa/summary'),
   markRead: (p: { ids?: string[]; all?: boolean; read?: boolean }) => call<{ changed: number; unread: number }>('POST', '/api/notifications/read', p),
 };

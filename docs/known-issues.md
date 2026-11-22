@@ -44,6 +44,12 @@ Tracked so nothing from a checkpoint is forgotten. Update this file when an item
 | Stray `bun` dependency in `package.json` (from 1B) | Removed |
 | **Blank desktop window**: a server started before a web rebuild served the HTML page for the new script file (static routes were only registered at startup) | Files are looked up per request; missing files are real 404s; regression tests added. Also explains the earlier unreproducible bad bundle |
 
+## Fixed in Pass 2A
+| Item | Fix |
+|---|---|
+| The test case Edit form could never save (it sent fields a client may not set) | The form carries only editable fields; found by the browser test |
+| Removing a project that holds QA records returned a raw database error | Clear 409 "archive it instead", shown in the Project Room |
+
 ## Open — not yet exercised
 | Item | Notes |
 |---|---|
@@ -52,6 +58,9 @@ Tracked so nothing from a checkpoint is forgotten. Update this file when an item
 ## Open — limitations to remember
 | Item | Notes |
 |---|---|
+| QA records (requirements, test cases) are not in the redacted JSON/CSV export yet | Backups include them; export support will come with the linked execution/defect data |
+| QA free text (requirements, steps, test data) is stored as typed | The form asks for fake or masked test data; output readable by agents will be redacted in 2D |
+| "Assigned tester" is free text | There is one local user; no accounts |
 | New robots default to the QA Analyst role | Roles are never guessed; change a robot's role on the Robots page to move it to another department |
 | The office has been seen by a human only through screenshots of synthetic data | Run `npm run launch` to look at your real robots |
 | Session cookie is not port-isolated | Another localhost app could read it from the browser; it still cannot be used by other web origins or cookie-less clients. Documented in `docs/security.md` |

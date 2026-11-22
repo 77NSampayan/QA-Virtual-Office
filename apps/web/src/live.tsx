@@ -17,6 +17,8 @@ export interface Live {
   activity: ActivityItem[];
   wsState: WsState;
   eventVersion: number;
+  /** Increments whenever any Manual QA record changes (here or in another window). */
+  qaVersion: number;
   refresh: () => Promise<void>;
   refreshActivity: () => void;
   /** The most recent session of a robot (its current state), if any. */
@@ -42,6 +44,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [wsState, setWsState] = useState<WsState>('connecting');
   const [eventVersion, setEventVersion] = useState(0);
+  const [qaVersion, setQaVersion] = useState(0);
   const activityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const refreshActivity = useCallback(() => {
@@ -85,6 +88,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
             if (s?.robot) setRobots((prev) => (prev.some((r) => r.id === s.robot!.id) ? prev : [...prev, s.robot!]));
             break;
           }
+          case 'qa.changed':
+            setQaVersion((v) => v + 1);
+            break;
           case 'event.created':
             setEventVersion((v) => v + 1);
             refreshActivity();
@@ -128,8 +134,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const sessionOf = useCallback((robotId: string) => sessions.find((s) => s.robot?.id === robotId), [sessions]);
 
   const value = useMemo<Live>(
-    () => ({ projects, sessions, robots, notifications, unread, integration, activity, wsState, eventVersion, refresh, refreshActivity, sessionOf }),
-    [projects, sessions, robots, notifications, unread, integration, activity, wsState, eventVersion, refresh, refreshActivity, sessionOf],
+    () => ({ projects, sessions, robots, notifications, unread, integration, activity, wsState, eventVersion, qaVersion, refresh, refreshActivity, sessionOf }),
+    [projects, sessions, robots, notifications, unread, integration, activity, wsState, eventVersion, qaVersion, refresh, refreshActivity, sessionOf],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
