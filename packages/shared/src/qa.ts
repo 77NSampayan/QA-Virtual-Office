@@ -270,6 +270,7 @@ export function inferKind(ref: string): RequirementKind {
       return 'brd';
     case 'FR':
     case 'NFR':
+    case 'VR':
     case 'FSD':
       return 'fsd';
     case 'AC':

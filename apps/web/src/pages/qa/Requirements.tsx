@@ -8,7 +8,7 @@ const REVIEW_LABEL: Record<string, string> = { unreviewed: 'Unreviewed', reviewe
 export const errText = (err: unknown): string =>
   err instanceof ApiDetailError ? (err.detail ? `${err.code}: ${err.detail}` : err.code) : String(err);
 
-function useMsg() {
+export function useMsg() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   return { msg, ok: (text: string) => setMsg({ ok: true, text }), fail: (e: unknown) => setMsg({ ok: false, text: errText(e) }), clear: () => setMsg(null) };
 }

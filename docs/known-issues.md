@@ -79,3 +79,4 @@ Tracked so nothing from a checkpoint is forgotten. Update this file when an item
 | Hooks only fire after Claude Code's workspace-trust prompt is accepted | Documented in `docs/security.md` and shown on the Settings screen |
 | Uninstall keeps edits made by others to `settings.json` | By design; observed `model` changing during validation |
 | Claude sign-in expiry notice | Claude Code printed "this sign-in ends between 2026-11-23 and 2026-11-26"; run `claude auth login` before then (not related to this app) |
+| B6 kill -9 test is occasionally flaky when the whole suite runs | Windows sometimes refuses to delete the test's temp folder right after the process is killed (EPERM); it passes when rerun alone. Not a product defect |

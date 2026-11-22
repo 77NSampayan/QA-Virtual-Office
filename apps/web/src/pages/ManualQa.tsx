@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useLive } from '../live.tsx';
+import { ExecutionPanel } from './qa/Execution.tsx';
 import { RequirementsPanel } from './qa/Requirements.tsx';
 import { TestCasesPanel } from './qa/TestCases.tsx';
 import { TraceabilityPanel } from './qa/Traceability.tsx';
 
-type Tab = 'requirements' | 'test-cases' | 'traceability';
+type Tab = 'requirements' | 'test-cases' | 'execution' | 'traceability';
 const TABS: Array<[Tab, string]> = [
   ['requirements', 'Requirements'],
   ['test-cases', 'Test cases'],
+  ['execution', 'Execution'],
   ['traceability', 'Traceability'],
 ];
 const KEY = 'qavo.manual.project';
@@ -19,7 +21,7 @@ const readSaved = () => {
   }
 };
 
-/** Manual QA Department: requirements, test cases and traceability (Pass 2A). */
+/** Manual QA Department: requirements, test cases, execution with evidence, traceability (Pass 2A/2B). */
 export function ManualQa() {
   const { projects } = useLive();
   const active = projects.filter((p) => !p.archived);
@@ -70,11 +72,12 @@ export function ManualQa() {
           </div>
           {tab === 'requirements' && <RequirementsPanel projectId={current.id} />}
           {tab === 'test-cases' && <TestCasesPanel projectId={current.id} />}
+          {tab === 'execution' && <ExecutionPanel projectId={current.id} />}
           {tab === 'traceability' && <TraceabilityPanel projectId={current.id} />}
           <section className="card nodata-panel" data-coming-next>
             <h3>Coming next in the Manual QA department</h3>
             <p className="muted">
-              Execution board and evidence (Pass 2B) · defects, exploratory sessions and the task board (Pass 2C) · agent assistance that creates drafts only (Pass 2D). Until then a test case&apos;s execution status is always NOT RUN.
+              Defects, exploratory sessions and the task board (Pass 2C) · agent assistance that creates drafts only (Pass 2D).
             </p>
           </section>
         </>

@@ -255,6 +255,88 @@ export interface QaImportResult {
   duplicates: string[];
   byPrefix: Record<string, number>;
 }
+export interface QaExecCounts {
+  not_run: number;
+  in_progress: number;
+  passed: number;
+  failed: number;
+  blocked: number;
+  skipped: number;
+  total: number;
+}
+export interface QaRun {
+  id: string;
+  projectId: string;
+  code: string;
+  name: string;
+  environment: string;
+  build: string;
+  status: 'open' | 'closed';
+  createdBy: string;
+  createdAt: string;
+  closedAt: string | null;
+  counts: QaExecCounts;
+}
+export interface QaExecution {
+  id: string;
+  runId: string;
+  testCaseId: string;
+  testCaseCode: string;
+  title: string;
+  priority: string;
+  testType: string;
+  caseVersion: number;
+  caseChanged: boolean;
+  status: string;
+  executorKind: string;
+  executedBy: string | null;
+  note: string;
+  actualResult: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+  evidenceCount: number;
+}
+export interface QaEvidence {
+  id: string;
+  executionId: string;
+  kind: 'note' | 'file';
+  label: string;
+  body: string;
+  fileName: string | null;
+  mime: string | null;
+  sizeBytes: number | null;
+  sha256: string | null;
+  redacted: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+export interface QaExecutionDetail extends QaExecution {
+  run: QaRun;
+  steps: string[];
+  preconditions: string;
+  testData: string;
+  expectedResult: string;
+  history: Array<{ id: string; at: string; actor: string; action: string; fromStatus: string | null; toStatus: string | null; note: string }>;
+  evidence: QaEvidence[];
+}
+export interface QaExecutionSummary {
+  approvedTestCases: number;
+  passed: number;
+  failed: number;
+  blocked: number;
+  skipped: number;
+  pending: number;
+  resultsRecorded: number;
+  openRuns: number;
+  passRate: QaRatio;
+}
+export interface QaSummary {
+  requirements: number;
+  testCases: number;
+  testCasesAwaitingReview: number;
+  execution: QaExecutionSummary;
+}
 export interface QaTestCaseInput {
   scenario?: string;
   title: string;
@@ -364,6 +446,18 @@ export const api = {
   transitionTestCase: (id: string, to: string, note = '') => call<QaTestCase>('POST', `/api/test-cases/${id}/transition`, { to, note }),
   archiveTestCase: (id: string, archived: boolean) => call<QaTestCase>('POST', `/api/test-cases/${id}/archive`, { archived }),
   traceability: (pid: string) => call<QaTraceability>('GET', `/api/projects/${pid}/traceability`),
-  qaSummary: () => call<{ requirements: number; testCases: number; testCasesAwaitingReview: number }>('GET', '/api/qa/summary'),
+  qaSummary: () => call<QaSummary>('GET', '/api/qa/summary'),
+  runs: (pid: string) => call<QaRun[]>('GET', `/api/projects/${pid}/test-runs`),
+  createRun: (pid: string, b: { name: string; environment?: string; build?: string; testCaseIds?: string[]; addAllApproved?: boolean }) =>
+    call<QaRun & { skipped: string[] }>('POST', `/api/projects/${pid}/test-runs`, b),
+  run: (id: string) => call<QaRun & { executions: QaExecution[] }>('GET', `/api/test-runs/${id}`),
+  addCasesToRun: (id: string, b: { testCaseIds?: string[]; addAllApproved?: boolean }) =>
+    call<{ added: number; skipped: string[] }>('POST', `/api/test-runs/${id}/cases`, b),
+  closeRun: (id: string) => call<QaRun>('POST', `/api/test-runs/${id}/close`),
+  execution: (id: string) => call<QaExecutionDetail>('GET', `/api/executions/${id}`),
+  setResult: (id: string, b: { status: string; note?: string; actualResult?: string }) => call<QaExecutionDetail>('POST', `/api/executions/${id}/result`, b),
+  addEvidenceNote: (id: string, b: { label?: string; body: string }) => call<QaEvidence>('POST', `/api/executions/${id}/evidence/note`, b),
+  addEvidenceFile: (id: string, b: { fileName: string; label?: string; dataBase64: string }) => call<QaEvidence>('POST', `/api/executions/${id}/evidence/file`, b),
+  deleteEvidence: (id: string) => call<{ ok: true }>('DELETE', `/api/evidence/${id}`),
   markRead: (p: { ids?: string[]; all?: boolean; read?: boolean }) => call<{ changed: number; unread: number }>('POST', '/api/notifications/read', p),
 };

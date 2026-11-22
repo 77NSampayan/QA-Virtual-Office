@@ -13,6 +13,7 @@ import type { DB } from './db/index.ts';
 import type { InstallContext } from './installer.ts';
 import { loggerOptions } from './logger.ts';
 import { writePolicy } from './policyWriter.ts';
+import { registerQaExecRoutes } from './qaExecRoutes.ts';
 import { registerQaRoutes } from './qaRoutes.ts';
 import { registerRoutes, type Runtime } from './routes.ts';
 import { registerSecurity } from './security.ts';
@@ -40,7 +41,7 @@ import {
   type ProjectPatch,
 } from './store.ts';
 
-export const VERSION = '0.4.0-pass2a';
+export const VERSION = '0.5.0-pass2b';
 const WEB_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
 
 export interface AppOptions {
@@ -241,6 +242,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   });
 
   registerQaRoutes(app, { db, broadcast });
+  registerQaExecRoutes(app, { db, broadcast, evidenceDir: paths.evidence });
 
   // ------------------------------------------------------------------ static UI
   const dist = opts.webDist ?? WEB_DIST;

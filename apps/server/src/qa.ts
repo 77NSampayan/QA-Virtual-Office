@@ -29,6 +29,7 @@ import {
   type TestCaseStatus,
 } from '@qavo/shared';
 import type { DB } from './db/index.ts';
+import { executionSummary, type ExecutionSummary } from './qaExec.ts';
 import { HttpError, newId } from './store.ts';
 
 const nowIso = () => new Date().toISOString();
@@ -137,7 +138,7 @@ export interface TestCaseDTO {
   approvedAt: string | null;
   rejectionNote: string;
   version: number;
-  /** Derived from executions (Pass 2B); until a test has been executed it is NOT RUN. */
+  /** Latest finished result from test runs (Pass 2B), else IN PROGRESS, else NOT RUN. */
   executionStatus: string;
   archived: boolean;
   createdAt: string;
@@ -376,7 +377,11 @@ export function runRequirementChecks(db: DB, projectId: string, actor: Actor = '
 // ---------------------------------------------------------------------------- test cases
 const TC_SELECT = `SELECT t.*,
     (SELECT group_concat(x.requirement_id, ',') FROM test_case_requirements x WHERE x.test_case_id = t.id) AS req_ids,
-    (SELECT group_concat(r.ref, char(31)) FROM test_case_requirements x JOIN requirements r ON r.id = x.requirement_id WHERE x.test_case_id = t.id) AS req_refs
+    (SELECT group_concat(r.ref, char(31)) FROM test_case_requirements x JOIN requirements r ON r.id = x.requirement_id WHERE x.test_case_id = t.id) AS req_refs,
+    COALESCE(
+      (SELECT e.status FROM test_executions e WHERE e.test_case_id = t.id AND e.status IN ('passed','failed','blocked','skipped') ORDER BY e.completed_at DESC, e.rowid DESC LIMIT 1),
+      (SELECT e.status FROM test_executions e WHERE e.test_case_id = t.id AND e.status = 'in_progress' LIMIT 1)
+    ) AS exec_status
   FROM test_cases t`;
 
 function tcDto(r: Row): TestCaseDTO {
@@ -408,7 +413,7 @@ function tcDto(r: Row): TestCaseDTO {
     approvedAt: (r.approved_at as string) ?? null,
     rejectionNote: r.rejection_note as string,
     version: r.version as number,
-    executionStatus: 'NOT RUN',
+    executionStatus: r.exec_status ? (r.exec_status as string).replace('_', ' ').toUpperCase() : 'NOT RUN',
     archived: r.archived === 1,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
@@ -678,11 +683,12 @@ export function traceability(db: DB, projectId: string): Traceability {
 }
 
 /** Counts for the Overview KPIs (real records only). */
-export function qaSummary(db: DB): { requirements: number; testCases: number; testCasesAwaitingReview: number } {
+export function qaSummary(db: DB): { requirements: number; testCases: number; testCasesAwaitingReview: number; execution: ExecutionSummary } {
   const c = (sql: string) => (db.prepare(sql).get() as { c: number }).c;
   return {
     requirements: c('SELECT COUNT(*) AS c FROM requirements'),
     testCases: c('SELECT COUNT(*) AS c FROM test_cases WHERE archived = 0'),
     testCasesAwaitingReview: c("SELECT COUNT(*) AS c FROM test_cases WHERE archived = 0 AND status = 'in_review'"),
+    execution: executionSummary(db),
   };
 }

@@ -157,6 +157,7 @@ describe('inferKind: document kind from the reference prefix', () => {
     ['OBJ-02', 'brd'],
     ['FR-12', 'fsd'],
     ['NFR-07', 'fsd'],
+    ['VR-14', 'fsd'],
     ['AC-04', 'acceptance_criteria'],
     ['US-9', 'user_story'],
     ['REQ-1', 'other'],

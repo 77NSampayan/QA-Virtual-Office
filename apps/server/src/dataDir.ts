@@ -30,6 +30,7 @@ export interface DataDirPaths {
   statuslineWrap: string;
   spool: string;
   exports: string;
+  evidence: string;
   logs: string;
   backups: string;
   settingsBackups: string;
@@ -49,6 +50,7 @@ export function dataDirPaths(root: string): DataDirPaths {
     statuslineWrap: path.join(root, 'statusline-wrap.json'),
     spool: path.join(root, 'spool.jsonl'),
     exports: path.join(root, 'exports'),
+    evidence: path.join(root, 'evidence'),
     logs: path.join(root, 'logs'),
     backups: path.join(root, 'backups'),
     settingsBackups: path.join(root, 'backups', 'claude-settings'),
@@ -149,7 +151,7 @@ export function bootstrapDataDir(root: string, opts: { applyAcl?: boolean } = {}
   fs.mkdirSync(root, { recursive: true });
   const applyAcl = opts.applyAcl ?? true;
   if (applyAcl) applyOwnerOnlyAcl(root);
-  for (const d of [paths.hooksDir, paths.logs, paths.backups, paths.settingsBackups, paths.exports]) {
+  for (const d of [paths.hooksDir, paths.logs, paths.backups, paths.settingsBackups, paths.exports, paths.evidence]) {
     fs.mkdirSync(d, { recursive: true });
   }
   let token = fs.existsSync(paths.token) ? fs.readFileSync(paths.token, 'utf8').trim() : '';
