@@ -362,6 +362,64 @@ function Data({ settings, refresh }: { settings: SettingsState; refresh: () => v
   );
 }
 
+// ------------------------------------------------------------------------------ desktop app
+const PRIORITY_LABEL: Record<string, string> = {
+  high: 'High (permission or input needed, failures)',
+  warning: 'Warnings',
+  low: 'Low (task completed, waiting for you)',
+  info: 'Info',
+};
+
+/** Shown only inside the Electron desktop shell (it exposes window.qavoDesktop). */
+function DesktopCard() {
+  const desktop = window.qavoDesktop;
+  const [prefs, setPrefs] = useState<DesktopPrefs | null>(null);
+  const { msg, run } = useAction();
+  useEffect(() => {
+    void desktop?.getPrefs().then(setPrefs);
+  }, [desktop]);
+  if (!desktop || !prefs) return null;
+  const set = (key: keyof DesktopPrefs, value: unknown) =>
+    run(async () => {
+      const next = await desktop.setPref(key, value);
+      if (next) setPrefs(next);
+      else throw new Error('rejected');
+    });
+  const togglePriority = (p: DesktopPrefs['toastPriorities'][number]) =>
+    set('toastPriorities', prefs.toastPriorities.includes(p) ? prefs.toastPriorities.filter((x) => x !== p) : [...prefs.toastPriorities, p]);
+  return (
+    <section className="card" data-desktop-card>
+      <h2>Desktop app</h2>
+      <label className="check">
+        <input type="checkbox" checked={prefs.minimizeToTray} onChange={(e) => set('minimizeToTray', e.target.checked)} />
+        Minimize and close to the system tray (the app keeps monitoring; use the tray menu to quit)
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={prefs.startWithWindows} onChange={(e) => set('startWithWindows', e.target.checked)} />
+        Start with Windows (hidden in the tray)
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={prefs.sound} onChange={(e) => set('sound', e.target.checked)} />
+        Play the Windows notification sound with alerts
+      </label>
+      <h3>Windows notifications for</h3>
+      {Object.keys(PRIORITY_LABEL).map((p) => (
+        <label className="check" key={p}>
+          <input type="checkbox" checked={prefs.toastPriorities.includes(p as DesktopPrefs['toastPriorities'][number])} onChange={() => togglePriority(p as DesktopPrefs['toastPriorities'][number])} />
+          {PRIORITY_LABEL[p]}
+        </label>
+      ))}
+      <p className="hint">Alerts never approve or deny anything: respond to permission requests in the Claude Code terminal.</p>
+      <div className="row">
+        <button className="ghost" onClick={() => run(async () => ((await desktop.testNotification()) ? 'Test notification sent.' : 'Not allowed.'))}>
+          Send a test notification
+        </button>
+      </div>
+      <Msg msg={msg} />
+    </section>
+  );
+}
+
 export function Settings({ onSignOut }: { onSignOut: () => void }) {
   const [status, setStatus] = useState<IntegrationStatus | null>(null);
   const [settings, setSettings] = useState<SettingsState | null>(null);
@@ -377,6 +435,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   if (!status || !settings) return <p className="muted">Loading settings…</p>;
   return (
     <div className="settings">
+      <DesktopCard />
       <Integration status={status} refresh={refresh} />
       <Privacy settings={settings} refresh={refresh} />
       <Excludes refresh={refresh} />

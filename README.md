@@ -2,7 +2,7 @@
 
 A local-first, privacy-focused QA command center for Windows. Real Claude Code sessions show up as robots in a pixel-art QA office, alongside manual QA and test-automation workspaces.
 
-**Current checkpoint: Pass 1C, the virtual office.** Real Claude Code sessions appear as animated pixel-art robots at their workstations, grouped into Manual QA and Automation departments, with Project Rooms, a QA Control Room, robot customization and a notification center. Everything shown comes from real hook events; unbuilt modules say so. The Electron shell arrives in Pass 1D.
+**Current checkpoint: Pass 1D, the Windows desktop app.** Real Claude Code sessions appear as animated pixel-art robots at their workstations, grouped into Manual QA and Automation departments, with Project Rooms, a QA Control Room, robot customization and a notification center. Everything shown comes from real hook events; unbuilt modules say so. `npm run desktop` opens it as a Windows app with a tray icon, toast notifications and start-with-Windows.
 
 ## Quick start (Windows, Node ≥ 22.12)
 
@@ -19,6 +19,8 @@ npm run hooks:install       # user-level hooks (shows the cross-project warning 
 4. Settings has install/uninstall (with a dry-run review), privacy toggles, scope, excluded folders, retention, backups and export.
 5. Remove the hooks with `npm run hooks:uninstall`. Your previous `settings.json` is restored exactly.
 
+Desktop app: `npm run desktop` starts (or attaches to) the server and opens the app; `npm run desktop:build` only bundles it.
+
 Other commands: `npm run statusline:install` / `statusline:uninstall` (opt-in usage line; wraps an existing one), `npm run db:backups` / `db:check` / `db:restore -- <name>`, `npm run e2e` (browser tests; needs Microsoft Edge).
 
 ## Layout
@@ -28,6 +30,7 @@ Other commands: `npm run statusline:install` / `statusline:uninstall` (opt-in us
 | `packages/shared` | Event schema, sanitizer, Windows path matching, redaction, status machine (browser-safe and Node-only subpaths) |
 | `apps/forwarder` | Hook forwarder, bundled into one self-contained `forward.mjs` |
 | `apps/server` | Fastify REST + WebSocket, SQLite, collector, policy writer, installer CLI |
+| `apps/desktop` | Electron shell: secure window, tray, toasts, login item, single instance; runs the server as a child process on system Node |
 | `apps/web` | React UI: office, rooms, control room, robots, notifications, settings; code-drawn pixel sprites (`src/sprites`) |
 | `docs/` | [decisions](docs/decisions.md), [privacy](docs/privacy.md), [security](docs/security.md), [event schema](docs/event-schema.md) |
 

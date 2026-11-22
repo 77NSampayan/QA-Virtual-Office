@@ -36,6 +36,14 @@ Tracked so nothing from a checkpoint is forgotten. Update this file when an item
 | Robots looked black (black outline + dark face) | Outlines tinted from the body colour |
 | Permission robot animation had only 2 distinct frames | Wave and flash now out of phase |
 
+## Fixed in Pass 1D
+| Item | Fix |
+|---|---|
+| Electron crashed when launched from VS Code (`ELECTRON_RUN_AS_NODE`) | Launcher clears the variable |
+| A failed test could leave a login item that starts the dev app at Windows login | Test cleans up in try/finally with a safety net; registry verified clean after each run |
+| Stray `bun` dependency in `package.json` (from 1B) | Removed |
+| **Blank desktop window**: a server started before a web rebuild served the HTML page for the new script file (static routes were only registered at startup) | Files are looked up per request; missing files are real 404s; regression tests added. Also explains the earlier unreproducible bad bundle |
+
 ## Open — not yet exercised
 | Item | Notes |
 |---|---|
@@ -54,7 +62,10 @@ Tracked so nothing from a checkpoint is forgotten. Update this file when an item
 | Replayed events older than the live state are recorded but not applied (`stale`) | By design: they cannot rewind a live status |
 | Backups contain project folder paths | Needed for restore; same current-user ACL. Exports never contain them |
 | Directory-symlink test skipped | This account lacks the privilege (EPERM); junctions are tested both ways |
-| Windows 10 not testable on this machine | Listed as an open validation item for 1D |
+| Windows 10 not tested (D4) | This machine runs Windows 11 |
+| Toast visibility and the tray menu not seen by a human | Automated checks prove Windows accepted the toast in ~35 ms; confirm visually with a real permission prompt (Focus assist can hide toasts) |
+| In development, toasts are attributed to the Electron host | A Start Menu shortcut with the AppUserModelID arrives with the installer (Pass 5) |
+| The desktop app needs Node on PATH | Until the installer (Pass 5) bundles a Node runtime |
 | Fork payloads carry no parent session id | Forks show "parent unknown" (nothing inferred) |
 | Hooks only fire after Claude Code's workspace-trust prompt is accepted | Documented in `docs/security.md` and shown on the Settings screen |
 | Uninstall keeps edits made by others to `settings.json` | By design; observed `model` changing during validation |

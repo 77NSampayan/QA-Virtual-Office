@@ -20,7 +20,7 @@
     "dev:web": "npm run dev -w @qavo/web",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p packages/shared && tsc -p apps/forwarder && tsc -p apps/server && tsc -p apps/web",
+    "typecheck": "tsc -p packages/shared && tsc -p apps/forwarder && tsc -p apps/server && tsc -p apps/web && tsc -p apps/desktop",
     "lint": "eslint .",
     "format": "prettier --write .",
     "hooks:install": "npm run build:forwarder && tsx apps/server/src/cli/hooks.ts install",
@@ -33,7 +33,9 @@
     "db:restore": "tsx apps/server/src/cli/db.ts restore",
     "e2e": "vitest run --config vitest.e2e.config.ts",
     "statusline:install": "npm run build:forwarder && tsx apps/server/src/cli/hooks.ts statusline-install",
-    "statusline:uninstall": "tsx apps/server/src/cli/hooks.ts statusline-uninstall"
+    "statusline:uninstall": "tsx apps/server/src/cli/hooks.ts statusline-uninstall",
+    "desktop": "npm run build:web && npm run build:forwarder && node apps/desktop/start.mjs",
+    "desktop:build": "node apps/desktop/build.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -50,8 +52,5 @@
   "allowScripts": {
     "better-sqlite3@12.11.1": true,
     "esbuild@0.25.12": true
-  },
-  "dependencies": {
-    "bun": "^1.4.5"
   }
 }

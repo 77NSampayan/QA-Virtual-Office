@@ -41,6 +41,16 @@ Status key: **Approved** = confirmed by the product owner during planning (plan 
 | ADR-025 | No router, state or UI library: a 20-line hash router and one React context. Pixel font bundling deferred (system monospace headings). | Fewer dependencies; the plan's React Router/TanStack Query/Zustand added nothing needed yet. |
 | ADR-026 | On narrow screens the pixel floor is replaced by compact status cards. | The spec prioritizes information over decoration on mobile. |
 
+## Pass 1D decisions
+
+| # | Decision | Rationale |
+|---|---|---|
+| ADR-027 | **The desktop app runs the server as a child process on the system Node** and **attaches** to a server that is already running (never replacing or killing it). The server it started is stopped when the app quits. *Approved by the product owner after the blocker was explained.* | The native SQLite module is built for Node, not Electron; one build cannot serve both. The packaged installer (Pass 5) must bundle a Node runtime. |
+| ADR-028 | The desktop launcher clears `ELECTRON_RUN_AS_NODE`. | VS Code sets it for child processes, which turns Electron into plain Node. |
+| ADR-029 | Toasts and the tray badge come from the same real-time event stream as the UI; toast text is built server-side from metadata only. Default toasts: High and Warning priorities; the user chooses. Alerts never approve or deny anything. | Permission requests must get immediate attention without bypassing Claude Code permissions. |
+| ADR-030 | The UI may only talk to the local server: the Electron session cancels every request to another origin, denies every permission and blocks navigation and `window.open`. | Defence in depth beyond the CSP. |
+| ADR-031 | A test seam exists only when `QAVO_E2E=1` is set: read-only state plus a toast-click simulator on a main-process global, unreachable from the page. | Tray state and OS toast clicks cannot otherwise be observed or driven by automation. |
+
 ## Notes recorded during Pass 1A
 
 - **npm 11 `allowScripts`.** Install scripts are allowed only for `better-sqlite3` (prebuilt native binary) and `esbuild` (platform binary). They're recorded in the root `package.json`.

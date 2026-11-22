@@ -47,7 +47,7 @@
 
 **Workspace trust.** Claude Code holds back hooks in a folder until its workspace-trust prompt has been accepted. If a session in a new folder doesn't show up, accept the trust prompt.
 
-## Electron (Pass 1D, planned)
+## Electron desktop shell (Pass 1D, implemented)
 
 - `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, strict CSP.
 - Navigation and `window.open` locked to the app origin; the permission handler denies everything.
