@@ -21,18 +21,25 @@ import {
   getProjectPath,
   getSetting,
   HttpError,
+  listActivity,
   listEvents,
   listNotifications,
   listProjects,
   listSessions,
+  markNotifications,
+  projectRoom,
   relinkSessions,
+  robotsWithSession,
   sessionDto,
+  unreadCount,
   updateProject,
+  updateRobot,
+  type RobotPatch,
   type ProjectInput,
   type ProjectPatch,
 } from './store.ts';
 
-export const VERSION = '0.2.0-pass1b';
+export const VERSION = '0.3.0-pass1c';
 const WEB_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
 
 export interface AppOptions {
@@ -163,6 +170,30 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   });
   app.get<{ Params: { id: string } }>('/api/sessions/:id/events', async (req) => listEvents(db, req.params.id));
   app.get('/api/notifications', async () => listNotifications(db));
+  app.get('/api/notifications/unread-count', async () => ({ unread: unreadCount(db) }));
+  app.post<{ Body: { ids?: unknown; all?: unknown; read?: unknown } }>('/api/notifications/read', async (req) => {
+    const { ids, all } = req.body ?? {};
+    const read = req.body?.read === false ? false : true;
+    const validIds = Array.isArray(ids) && ids.length > 0 && ids.length <= 500 && ids.every((i) => typeof i === 'string' && /^ntf_[a-f0-9]{16}$/.test(i));
+    if (all !== true && !validIds) throw new HttpError(400, 'ids_or_all_required');
+    const r = markNotifications(db, { ids: validIds ? (ids as string[]) : undefined, all: all === true, read });
+    broadcast({ type: 'notifications.read', unread: r.unread });
+    return r;
+  });
+
+  // ------------------------------------------------------------------ robots, activity, rooms
+  app.get('/api/robots', async () => robotsWithSession(db));
+  app.patch<{ Params: { id: string }; Body: RobotPatch }>('/api/robots/:id', async (req) => {
+    const robot = updateRobot(db, req.params.id, req.body ?? {});
+    broadcast({ type: 'robot.updated', robot });
+    return robot;
+  });
+  app.get<{ Querystring: { limit?: string; projectId?: string } }>('/api/activity', async (req) => {
+    const limit = req.query.limit === undefined ? 50 : Number(req.query.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new HttpError(400, 'limit_invalid');
+    return listActivity(db, limit, req.query.projectId);
+  });
+  app.get<{ Params: { id: string } }>('/api/projects/:id/room', async (req) => projectRoom(db, req.params.id));
 
   // ------------------------------------------------------------------ project mutations
   app.post<{ Body: ProjectInput }>('/api/projects', async (req, reply) => {

@@ -14,6 +14,32 @@ export interface Robot {
   name: string;
   robotType: string;
   role: string;
+  projectId: string | null;
+  palette: { primary: string; accent: string };
+}
+export interface ActivityItem {
+  id: string;
+  sessionId: string;
+  robotName: string | null;
+  projectId: string | null;
+  projectAlias: string | null;
+  event: string;
+  toolName: string | null;
+  notificationType: string | null;
+  fileCategory: string | null;
+  commandCategory: string | null;
+  agentType: string | null;
+  statusAfter: RobotStatus;
+  statusSourceAfter: StatusSource;
+  receivedAt: string;
+}
+export interface ProjectRoom {
+  project: Project;
+  sessionCount: number;
+  activeSessions: number;
+  robotCount: number;
+  byStatus: Record<string, number>;
+  lastActivityAt: string | null;
 }
 export interface Session {
   sessionId: string;
@@ -71,6 +97,9 @@ export interface Notification {
   title: string;
   body: string;
   createdAt: string;
+  readAt: string | null;
+  sessionId: string | null;
+  projectId: string | null;
 }
 export interface IntegrationStatus {
   version: string;
@@ -177,4 +206,11 @@ export const api = {
   backups: () => call<BackupInfo[]>('GET', '/api/backups'),
   createBackup: () => call<BackupInfo>('POST', '/api/backups'),
   integrity: () => call<{ ok: boolean; detail: string }>('POST', '/api/integrity/check'),
+  robots: () => call<Robot[]>('GET', '/api/robots'),
+  patchRobot: (id: string, p: Partial<{ name: string; robotType: string; role: string; palette: { primary: string; accent: string } }>) =>
+    call<Robot>('PATCH', `/api/robots/${id}`, p),
+  activity: (limit = 50, projectId?: string) =>
+    call<ActivityItem[]>('GET', `/api/activity?limit=${limit}${projectId ? `&projectId=${encodeURIComponent(projectId)}` : ''}`),
+  room: (id: string) => call<ProjectRoom>('GET', `/api/projects/${id}/room`),
+  markRead: (p: { ids?: string[]; all?: boolean; read?: boolean }) => call<{ changed: number; unread: number }>('POST', '/api/notifications/read', p),
 };

@@ -2,7 +2,7 @@
 
 A local-first, privacy-focused QA command center for Windows. Real Claude Code sessions show up as robots in a pixel-art QA office, alongside manual QA and test-automation workspaces.
 
-**Current checkpoint: Pass 1B, reliable Claude Code integration.** Real Claude Code hook events are captured on Windows (with a spool so nothing is lost while the server is down), persisted locally in SQLite and shown live on a web console with a Settings screen. The pixel-art office arrives in Pass 1C and the Electron shell in Pass 1D.
+**Current checkpoint: Pass 1C, the virtual office.** Real Claude Code sessions appear as animated pixel-art robots at their workstations, grouped into Manual QA and Automation departments, with Project Rooms, a QA Control Room, robot customization and a notification center. Everything shown comes from real hook events; unbuilt modules say so. The Electron shell arrives in Pass 1D.
 
 ## Quick start (Windows, Node ≥ 22.12)
 
@@ -28,7 +28,7 @@ Other commands: `npm run statusline:install` / `statusline:uninstall` (opt-in us
 | `packages/shared` | Event schema, sanitizer, Windows path matching, redaction, status machine (browser-safe and Node-only subpaths) |
 | `apps/forwarder` | Hook forwarder, bundled into one self-contained `forward.mjs` |
 | `apps/server` | Fastify REST + WebSocket, SQLite, collector, policy writer, installer CLI |
-| `apps/web` | React UI (Pass 1A console) |
+| `apps/web` | React UI: office, rooms, control room, robots, notifications, settings; code-drawn pixel sprites (`src/sprites`) |
 | `docs/` | [decisions](docs/decisions.md), [privacy](docs/privacy.md), [security](docs/security.md), [event schema](docs/event-schema.md) |
 
 ## Data

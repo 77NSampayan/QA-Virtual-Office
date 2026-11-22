@@ -28,6 +28,14 @@ Tracked so nothing from a checkpoint is forgotten. Update this file when an item
 | Permission prompt in default mode | Confirmed on a live session: PermissionRequest → awaiting_permission (rule 11), follow-up Notification ~6 s later (rule 12), exactly one notification. Reads never prompt in default mode; a write or command is needed |
 | Spool + replay after the server was stopped | Confirmed on real use: 22 events from 3 sessions replayed once, in order, 0 duplicates, 0 false notifications |
 
+## Fixed in Pass 1C
+| Item | Fix |
+|---|---|
+| Save confirmation on the Robots page vanished (editor remounted) | Stable key + form resync |
+| Robots page overflowed 3 px at 360 px | Controls constrained to the column |
+| Robots looked black (black outline + dark face) | Outlines tinted from the body colour |
+| Permission robot animation had only 2 distinct frames | Wave and flash now out of phase |
+
 ## Open — not yet exercised
 | Item | Notes |
 |---|---|
@@ -36,6 +44,8 @@ Tracked so nothing from a checkpoint is forgotten. Update this file when an item
 ## Open — limitations to remember
 | Item | Notes |
 |---|---|
+| New robots default to the QA Analyst role | Roles are never guessed; change a robot's role on the Robots page to move it to another department |
+| The office has been seen by a human only through screenshots of synthetic data | Run `npm run launch` to look at your real robots |
 | Session cookie is not port-isolated | Another localhost app could read it from the browser; it still cannot be used by other web origins or cookie-less clients. Documented in `docs/security.md` |
 | Same-user processes can read `token` | Inherent to a same-user file token; documented |
 | A wrapped status line runs through `cmd.exe` | Status lines written for Git Bash/PowerShell syntax may not run when wrapped; a failing wrapped command falls back to our compact line |

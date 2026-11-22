@@ -56,7 +56,7 @@ async function signedInContext(): Promise<BrowserContext> {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(env.createLaunchUrl());
-  await page.waitForSelector('text=Claude Code sessions');
+  await page.waitForSelector('[data-page="overview"]');
   await page.close();
   return ctx;
 }
@@ -67,7 +67,7 @@ describe('B5: browser', () => {
     const page = await ctx.newPage();
     await page.goto(env.origin + '/');
     await page.waitForSelector('text=This browser is not signed in');
-    expect(await page.textContent('body')).not.toContain('Claude Code sessions');
+    expect(await page.textContent('body')).not.toContain('QA Office Overview');
     // direct API access from the same browser: 401, no data
     const status = await page.evaluate(async () => (await fetch('/api/projects', { headers: { 'x-qavo-client': '1' } })).status);
     expect(status).toBe(401);
@@ -80,7 +80,7 @@ describe('B5: browser', () => {
     const page = await ctx.newPage();
     const url = env.createLaunchUrl();
     await page.goto(url);
-    await page.waitForSelector('text=Claude Code sessions');
+    await page.waitForSelector('[data-page="overview"]');
     expect(page.url()).toBe(env.origin + '/'); // redirected, nonce no longer in the address bar
     expect(await page.evaluate(() => document.cookie)).not.toContain('qavo_session'); // HttpOnly
     const cookie = (await ctx.cookies()).find((c) => c.name === 'qavo_session')!;
@@ -96,16 +96,13 @@ describe('B5: browser', () => {
     const ctx = await signedInContext();
     const page = await ctx.newPage();
     await page.goto(env.origin + '/');
-    await page.waitForSelector('text=Claude Code sessions');
-    expect(await page.textContent('header')).toContain('Pass 1B');
-    await page.click('button.tab:has-text("Settings")');
+    await page.waitForSelector('[data-page="overview"]');
+    await page.click('a[data-nav="/settings"]');
     await page.waitForSelector('text=Claude Code integration');
     for (const text of ['Privacy and monitoring scope', 'Excluded folders', 'Data: retention, backups, export', 'Install hooks', 'Registered projects only']) {
       expect(await page.textContent('body')).toContain(text);
     }
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'settings.png'), fullPage: true });
-    await page.click('button.tab:has-text("Console")');
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'console.png'), fullPage: true });
     await ctx.close();
   });
 
@@ -129,7 +126,7 @@ describe('B5: browser', () => {
     const ctx = await signedInContext();
     const page = await ctx.newPage();
     await page.goto(env.origin + '/');
-    await page.click('button.tab:has-text("Settings")');
+    await page.click('a[data-nav="/settings"]');
     await page.click('text=Sign out of this browser');
     await page.waitForSelector('text=This browser is not signed in');
     const status = await page.evaluate(async () => (await fetch('/api/projects', { headers: { 'x-qavo-client': '1' } })).status);

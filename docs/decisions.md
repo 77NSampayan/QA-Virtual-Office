@@ -30,6 +30,17 @@ Status key: **Approved** = confirmed by the product owner during planning (plan 
 | ADR-019 | Backups are single files (non-WAL) verified with `integrity_check`; a database failing `quick_check` is moved aside (never deleted) and the newest valid backup restored. | Self-contained backups; no silent data loss on corruption. |
 | ADR-020 | Enabling content capture or "All sessions" scope needs explicit confirmation in the API (not only the UI). | The privacy-widening choices cannot be flipped by an accidental request. |
 
+## Pass 1C decisions (within the approved scope)
+
+| # | Decision | Rationale |
+|---|---|---|
+| ADR-021 | Sprites are **pure functions** of (type, status, palette, frame) producing pixel grids; the canvas only paints them. The shared animation clock advances the frame index, never the status. | Robots can only show real status changes (C2), and animations are testable by measuring pixels (C1) without a browser. |
+| ADR-022 | A robot's **appearance** (one of 7 types) and its **logical role** are separate fields. The role decides the department and station; nothing assigns roles automatically. New robots default to QA Analyst. | The spec asks for customizable looks and logical roles, and Claude Code has no native specialised agents. |
+| ADR-023 | Robot STATE is derived from sessions (real events); robot records carry identity only. Robots idle for more than 24 hours are hidden unless requested. | Avoids duplicating state and keeps the floor uncluttered without deleting identity. |
+| ADR-024 | Every KPI is computed from real records or shows **"No data yet"** with the pass that delivers it. "Active" means not ended and seen in the last 30 minutes; each real KPI carries its formula. | No invented metrics, and percentages are never shown without a denominator. |
+| ADR-025 | No router, state or UI library: a 20-line hash router and one React context. Pixel font bundling deferred (system monospace headings). | Fewer dependencies; the plan's React Router/TanStack Query/Zustand added nothing needed yet. |
+| ADR-026 | On narrow screens the pixel floor is replaced by compact status cards. | The spec prioritizes information over decoration on mobile. |
+
 ## Notes recorded during Pass 1A
 
 - **npm 11 `allowScripts`.** Install scripts are allowed only for `better-sqlite3` (prebuilt native binary) and `esbuild` (platform binary). They're recorded in the root `package.json`.

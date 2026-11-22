@@ -12,7 +12,11 @@ import {
   type StatusSource,
   type DroneState,
   type SessionFlags,
+  type RobotPalette,
+  isHexColor,
+  isRobotType,
   newSessionState,
+  parsePalette,
 } from '@qavo/shared';
 import { lexicalForm, canonicalForm, normalizeWinPath, type PathForms } from '@qavo/shared/paths';
 import type { DB } from './db/index.ts';
@@ -279,6 +283,7 @@ export interface RobotDTO {
   robotType: string;
   role: string;
   projectId: string | null;
+  palette: RobotPalette;
 }
 
 export function assignRobot(db: DB, projectId: string | null, origin: SessionOrigin): RobotDTO {
@@ -306,11 +311,61 @@ export function assignRobot(db: DB, projectId: string | null, origin: SessionOri
   return getRobot(db, id)!;
 }
 
+type RobotRow = { id: string; name: string; robot_type: string; role: string; project_id: string | null; palette_json: string };
+const robotDto = (r: RobotRow): RobotDTO => ({
+  id: r.id,
+  name: r.name,
+  robotType: r.robot_type,
+  role: r.role,
+  projectId: r.project_id,
+  palette: parsePalette(r.palette_json, r.robot_type),
+});
+
 export function getRobot(db: DB, id: string): RobotDTO | null {
-  const r = db.prepare('SELECT id, name, robot_type, role, project_id FROM robots WHERE id = ?').get(id) as
-    | { id: string; name: string; robot_type: string; role: string; project_id: string | null }
-    | undefined;
-  return r ? { id: r.id, name: r.name, robotType: r.robot_type, role: r.role, projectId: r.project_id } : null;
+  const r = db.prepare('SELECT id, name, robot_type, role, project_id, palette_json FROM robots WHERE id = ?').get(id) as RobotRow | undefined;
+  return r ? robotDto(r) : null;
+}
+
+export function listRobots(db: DB): RobotDTO[] {
+  return (db.prepare('SELECT id, name, robot_type, role, project_id, palette_json FROM robots ORDER BY created_at, id').all() as RobotRow[]).map(robotDto);
+}
+
+export interface RobotPatch {
+  name?: unknown;
+  robotType?: unknown;
+  role?: unknown;
+  palette?: unknown;
+}
+
+const ROBOT_NAME_RE = /^[^\\/:*?"<>|\u0000-\u001f]{1,30}$/;
+
+/** Validates every field before writing any (all-or-nothing). */
+export function updateRobot(db: DB, id: string, patch: RobotPatch): RobotDTO {
+  const cur = getRobot(db, id);
+  if (!cur) throw new HttpError(404, 'robot_not_found');
+  let name = cur.name;
+  let robotType = cur.robotType;
+  let role = cur.role;
+  let palette = cur.palette;
+  if (patch.name !== undefined) {
+    if (typeof patch.name !== 'string' || !ROBOT_NAME_RE.test(patch.name.trim())) throw new HttpError(400, 'name_invalid', 'Name must be 1-30 characters without path characters');
+    name = patch.name.trim();
+  }
+  if (patch.robotType !== undefined) {
+    if (!isRobotType(patch.robotType)) throw new HttpError(400, 'robot_type_invalid');
+    robotType = patch.robotType;
+  }
+  if (patch.role !== undefined) {
+    if (!isRobotType(patch.role)) throw new HttpError(400, 'role_invalid');
+    role = patch.role;
+  }
+  if (patch.palette !== undefined) {
+    const p = patch.palette as Partial<RobotPalette> | null;
+    if (!p || typeof p !== 'object' || !isHexColor(p.primary) || !isHexColor(p.accent)) throw new HttpError(400, 'palette_invalid', 'Colours must be #rrggbb');
+    palette = { primary: p.primary, accent: p.accent };
+  }
+  db.prepare('UPDATE robots SET name = ?, robot_type = ?, role = ?, palette_json = ? WHERE id = ?').run(name, robotType, role, JSON.stringify(palette), id);
+  return getRobot(db, id)!;
 }
 
 // ---------------------------------------------------------------------------- sessions
@@ -654,4 +709,115 @@ export function listNotifications(db: DB, limit = 100): NotificationDTO[] {
     createdAt: r.created_at as string,
     readAt: (r.read_at as string) ?? null,
   }));
+}
+
+export function markNotifications(db: DB, opts: { ids?: string[]; all?: boolean; read: boolean }): { changed: number; unread: number } {
+  const at = opts.read ? nowIso() : null;
+  let changed = 0;
+  db.transaction(() => {
+    if (opts.all) {
+      changed = db.prepare(opts.read ? 'UPDATE notifications SET read_at = ? WHERE read_at IS NULL' : 'UPDATE notifications SET read_at = ? WHERE read_at IS NOT NULL').run(at).changes;
+    } else {
+      const upd = db.prepare('UPDATE notifications SET read_at = ? WHERE id = ?');
+      for (const id of opts.ids ?? []) changed += upd.run(at, id).changes;
+    }
+  })();
+  return { changed, unread: unreadCount(db) };
+}
+
+export function unreadCount(db: DB): number {
+  return (db.prepare('SELECT COUNT(*) AS c FROM notifications WHERE read_at IS NULL').get() as { c: number }).c;
+}
+
+// ---------------------------------------------------------------------------- activity + project rooms
+export interface ActivityDTO {
+  id: string;
+  sessionId: string;
+  robotName: string | null;
+  projectId: string | null;
+  projectAlias: string | null;
+  event: string;
+  toolName: string | null;
+  notificationType: string | null;
+  fileCategory: string | null;
+  commandCategory: string | null;
+  agentType: string | null;
+  statusAfter: string;
+  statusSourceAfter: string;
+  receivedAt: string;
+}
+
+/** Recent real events (metadata only), newest first. */
+export function listActivity(db: DB, limit: number, projectId?: string): ActivityDTO[] {
+  const rows = db
+    .prepare(
+      `SELECT e.id, e.session_id, r.name AS robot_name, e.project_id, p.alias AS project_alias, e.event, e.raw_event_name, e.tool_name,
+              e.notification_type, e.file_category, e.command_category, e.agent_type, e.status_after, e.status_source_after, e.received_at
+       FROM agent_events e
+       LEFT JOIN sessions s ON s.session_id = e.session_id
+       LEFT JOIN robots r ON r.id = s.robot_id
+       LEFT JOIN projects p ON p.id = e.project_id
+       ${projectId ? 'WHERE e.project_id = ?' : ''}
+       ORDER BY e.received_at DESC, e.rowid DESC LIMIT ?`,
+    )
+    .all(...(projectId ? [projectId, limit] : [limit])) as Array<Record<string, string | null>>;
+  return rows.map((r) => ({
+    id: r.id!,
+    sessionId: r.session_id!,
+    robotName: r.robot_name ?? null,
+    projectId: r.project_id ?? null,
+    projectAlias: r.project_alias ?? null,
+    event: r.event === 'other' ? (r.raw_event_name ?? 'other') : r.event!,
+    toolName: r.tool_name ?? null,
+    notificationType: r.notification_type ?? null,
+    fileCategory: r.file_category ?? null,
+    commandCategory: r.command_category ?? null,
+    agentType: r.agent_type ?? null,
+    statusAfter: r.status_after!,
+    statusSourceAfter: r.status_source_after!,
+    receivedAt: r.received_at!,
+  }));
+}
+
+export interface ProjectRoomDTO {
+  project: ProjectDTO;
+  sessionCount: number;
+  activeSessions: number;
+  robotCount: number;
+  byStatus: Record<string, number>;
+  lastActivityAt: string | null;
+}
+
+export function projectRoom(db: DB, projectId: string): ProjectRoomDTO {
+  const project = getProject(db, projectId);
+  if (!project) throw new HttpError(404, 'project_not_found');
+  const sessions = db.prepare('SELECT status, robot_id, last_event_at FROM sessions WHERE project_id = ?').all(projectId) as Array<{
+    status: string;
+    robot_id: string | null;
+    last_event_at: number;
+  }>;
+  const byStatus: Record<string, number> = {};
+  for (const s of sessions) byStatus[s.status] = (byStatus[s.status] ?? 0) + 1;
+  const last = db.prepare('SELECT MAX(received_at) AS t FROM agent_events WHERE project_id = ?').get(projectId) as { t: string | null };
+  return {
+    project,
+    sessionCount: sessions.length,
+    activeSessions: sessions.filter((s) => s.status !== 'disconnected').length,
+    robotCount: new Set(sessions.map((s) => s.robot_id).filter(Boolean)).size,
+    byStatus,
+    lastActivityAt: last.t,
+  };
+}
+
+export interface RobotWithSessionDTO extends RobotDTO {
+  /** The robot's most recent session (its current state), or null if it has none. */
+  session: SessionDTO | null;
+}
+
+export function robotsWithSession(db: DB): RobotWithSessionDTO[] {
+  const latest = db.prepare('SELECT session_id FROM sessions WHERE robot_id = ? ORDER BY last_event_at DESC LIMIT 1');
+  return listRobots(db).map((r) => {
+    const row = latest.get(r.id) as { session_id: string } | undefined;
+    return { ...r, session: row ? sessionDto(db, row.session_id) : null };
+  });
 }
