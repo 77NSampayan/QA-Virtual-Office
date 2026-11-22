@@ -1,0 +1,46 @@
+{
+  "name": "qa-virtual-office",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Claude Code QA Virtual Office - local-first QA command center",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build:forwarder": "npm run build -w @qavo/forwarder",
+    "build:web": "npm run build -w @qavo/web",
+    "build": "npm run build:forwarder && npm run build:web",
+    "start": "npm run build && npm run start -w @qavo/server",
+    "dev:server": "npm run dev -w @qavo/server",
+    "dev:web": "npm run dev -w @qavo/web",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p packages/shared && tsc -p apps/forwarder && tsc -p apps/server && tsc -p apps/web",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "hooks:install": "npm run build:forwarder && tsx apps/server/src/cli/hooks.ts install",
+    "hooks:uninstall": "tsx apps/server/src/cli/hooks.ts uninstall",
+    "hooks:status": "tsx apps/server/src/cli/hooks.ts status",
+    "folder-key:rotate": "tsx apps/server/src/cli/folderKey.ts rotate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.25.12",
+    "eslint": "^9.39.5",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^3.2.7"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.25.12": true
+  }
+}

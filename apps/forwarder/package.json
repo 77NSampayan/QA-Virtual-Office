@@ -1,0 +1,12 @@
+{
+  "name": "@qavo/forwarder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@qavo/shared": "0.1.0"
+  }
+}
