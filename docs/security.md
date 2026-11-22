@@ -54,3 +54,13 @@
 - Minimal `contextBridge` API.
 - Single instance; fuses disabling RunAsNode and NODE_OPTIONS.
 - Secrets stored in `safeStorage` (DPAPI).
+
+## Agent surface (Pass 2D, implemented)
+
+- **Who can call it:** only the local `qa-office` MCP server (or anything else that holds the agent token). `/api/agent/*` needs `X-QAVO-Agent-Token` (256-bit, file `agent-token`, current-user-only ACL, separate from the hook token and the UI cookie), no `Origin` header (never a browser), the usual Host check, and its own rate limit (20 calls/s, burst 60).
+- **What the token opens:** the `/api/agent/*` routes only. It is refused (401) on the UI API, settings, hooks and launch routes. Access is OFF until a person turns it on (cookie + CSRF header + confirmation) and can be revoked at any time ("Revoke and replace token": the old token dies immediately).
+- **What an agent can do:** 17 allow-listed `qa_*` tools; strict schemas; actor `agent`. No tool approves, passes, closes, rejects, completes, archives, deletes, launches or installs anything, and the services and database constraints behind them refuse the agent actor even if a tool were added by mistake.
+- **What an agent sees:** safe project aliases and entity codes only (no paths, no internal ids), redacted text, at most 200 rows per list.
+- **Audit:** one append-only row per call (tool, project, outcome, code), never content.
+- **Same-user limitation:** any process running as the same Windows user can read `agent-token` (same as the hook token). It stops other users, browsers and remote hosts. Turn access off, or replace the token, if you suspect misuse.
+- **Launch Claude Code here:** confirmed, fixed `cmd.exe /c start … cmd /k claude` in the project folder; folder names with `% ^ & | < > " !` are refused; not available in demo mode; not reachable with the agent token.

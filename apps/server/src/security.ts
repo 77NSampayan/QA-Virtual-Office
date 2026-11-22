@@ -16,13 +16,15 @@ export interface SecurityOptions {
   token: string;
   /** Returns true when the request carries a valid session cookie. Omit to disable (tests only). */
   isAuthenticated?: (req: FastifyRequest) => boolean;
+  /** Returns the current agent token (read on every call, so a rotation takes effect immediately). */
+  agentToken?: () => string;
   hooksRatePerSec?: number;
   hooksBurst?: number;
 }
 
 export const TOKEN_ROUTES = new Set(['/api/hooks', '/api/statusline', '/api/auth/launch-nonce']);
 const AUTH_EXEMPT = new Set(['/api/health', '/api/auth/status']);
-const SENSITIVE_GET = [/^\/api\/projects\/[^/]+\/path$/, /^\/api\/settings\/excludes$/];
+const SENSITIVE_GET = [/^\/api\/projects\/[^/]+\/path$/, /^\/api\/settings\/excludes$/, /^\/api\/settings\/agent\/setup$/];
 
 function timingSafeEq(a: string, b: string): boolean {
   const ab = Buffer.from(a);
@@ -41,6 +43,9 @@ export function registerSecurity(app: FastifyInstance, opts: SecurityOptions) {
   const burst = opts.hooksBurst ?? 600;
   let tokens = burst;
   let last = Date.now();
+  // agent calls have their own, much smaller budget
+  let agentTokens = 60;
+  let agentLast = Date.now();
 
   const deny = (req: FastifyRequest, reply: FastifyReply, status: number, code: string) => {
     // Upgrade sockets are detached from the HTTP server's connection tracking: close them explicitly.
@@ -67,6 +72,20 @@ export function registerSecurity(app: FastifyInstance, opts: SecurityOptions) {
       last = now;
       if (tokens < 1) return deny(req, reply, 429, 'rate_limited');
       tokens -= 1;
+      return;
+    }
+
+    if (url.startsWith('/api/agent/')) {
+      // the local MCP server: a separate token, never a browser (no Origin), own rate limit
+      if (origin !== undefined) return deny(req, reply, 403, 'origin_not_allowed');
+      const tok = req.headers['x-qavo-agent-token'];
+      const expected = opts.agentToken?.() ?? '';
+      if (!expected || typeof tok !== 'string' || !timingSafeEq(tok, expected)) return deny(req, reply, 401, 'bad_agent_token');
+      const now = Date.now();
+      agentTokens = Math.min(60, agentTokens + ((now - agentLast) / 1000) * 20);
+      agentLast = now;
+      if (agentTokens < 1) return deny(req, reply, 429, 'rate_limited');
+      agentTokens -= 1;
       return;
     }
 

@@ -129,3 +129,7 @@ Used on opted-in content, log lines and (Pass 1B) export output. Matches are rep
 | Backups | One self-contained, verified file per backup under the same ACL (includes `project_paths`, which is needed for restore); newest 7 kept |
 | Exports | Redaction re-applied to free-text fields, aliases only, never `project_paths`, plus a manifest stating the capture policy; CSV cells are protected against formula injection |
 | Retention | Events kept 30 days by default; opted-in content 7 days (both configurable); expired sessions, notifications and auth sessions are removed too |
+
+## Agents and QA data (Pass 2D)
+
+When a person enables agent access, a connected Claude Code agent can read QA records (requirements, test cases, defects, tasks, notes) and the model provider processes what the agent reads. To limit exposure: everything returned to an agent is redacted again (emails, phone numbers, cards, keys, tokens…), project folder paths and internal ids are never returned, evidence files and screenshots are not available to agents, and the audit log records only which tool ran, on which project, with what outcome. Keep test data fictional or masked: redaction is a safety net, not a licence to enter customer data.

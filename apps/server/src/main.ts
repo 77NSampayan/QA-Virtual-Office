@@ -2,6 +2,7 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { bootstrapDataDir, defaultDataDir } from './dataDir.ts';
+import { installMcpScript } from './mcpInstall.ts';
 import { assertNotRealDataDir, DEMO_DEFAULT_PORT, defaultDemoDir, resetDemoFiles, seedDemo } from './demo.ts';
 import { buildApp, VERSION } from './app.ts';
 import { runTimers } from './collector.ts';
@@ -20,6 +21,7 @@ if (demo) {
 }
 const { paths, token } = bootstrapDataDir(dataDir);
 if (demo) resetDemoFiles(dataDir);
+installMcpScript(paths);
 const { db, recovery } = openDbWithRecovery(paths);
 if (recovery) {
   console.warn(

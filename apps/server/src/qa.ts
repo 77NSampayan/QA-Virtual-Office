@@ -685,6 +685,19 @@ export function traceability(db: DB, projectId: string): Traceability {
 }
 
 /** Counts for the Overview KPIs (real records only). */
+/** The same figures for one project (Project Room). */
+export function projectQaSummary(db: DB, projectId: string) {
+  const c = (sql: string) => (db.prepare(sql).get(projectId) as { c: number }).c;
+  return {
+    requirements: c('SELECT COUNT(*) AS c FROM requirements WHERE project_id = ?'),
+    testCases: c('SELECT COUNT(*) AS c FROM test_cases WHERE project_id = ? AND archived = 0'),
+    approvedTestCases: c("SELECT COUNT(*) AS c FROM test_cases WHERE project_id = ? AND archived = 0 AND status = 'approved'"),
+    execution: executionSummary(db, projectId),
+    defects: defectSummary(db, projectId),
+    tasks: taskSummary(db, projectId),
+  };
+}
+
 export function qaSummary(db: DB): { requirements: number; testCases: number; testCasesAwaitingReview: number; execution: ExecutionSummary; defects: DefectSummary; tasks: { total: number; open: number; blocked: number } } {
   const c = (sql: string) => (db.prepare(sql).get() as { c: number }).c;
   return {

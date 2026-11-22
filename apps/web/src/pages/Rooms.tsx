@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { api, ApiDetailError, type ActivityItem, type ProjectRoom } from '../api.ts';
+import { api, ApiDetailError, type ActivityItem, type ProjectQaSummary, type ProjectRoom } from '../api.ts';
 import { Floor } from '../Floor.tsx';
 import { useLive } from '../live.tsx';
 import { navigate } from '../router.ts';
 import { ProjectForm } from '../ProjectForm.tsx';
-import { agoIso, NoData, StatusPill, useNow } from '../ui.tsx';
+import { agoIso, Kpi, NoData, StatusPill, useNow } from '../ui.tsx';
 
 export function ActivityFeed({ items, now, empty }: { items: ActivityItem[]; now: number; empty: string }) {
   if (items.length === 0) return <p className="muted">{empty}</p>;
@@ -69,18 +69,20 @@ export function RoomsList() {
 
 /** A single project's room: its robots at their stations, summary, and recent activity. */
 export function ProjectRoomView({ id }: { id: string }) {
-  const { projects, robots, sessions, refresh, eventVersion } = useLive();
+  const { projects, robots, sessions, refresh, eventVersion, qaVersion } = useLive();
   const now = useNow();
   const project = projects.find((p) => p.id === id);
   const [room, setRoom] = useState<ProjectRoom | null>(null);
   const [feed, setFeed] = useState<ActivityItem[]>([]);
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [qa, setQa] = useState<ProjectQaSummary | null>(null);
 
   useEffect(() => {
+    void api.projectQaSummary(id).then(setQa).catch(() => setQa(null));
     void api.room(id).then(setRoom).catch(() => setRoom(null));
     void api.activity(25, id).then(setFeed).catch(() => setFeed([]));
-  }, [id, eventVersion, sessions.length]);
+  }, [id, eventVersion, qaVersion, sessions.length]);
 
   if (!project) {
     return (
@@ -125,11 +127,30 @@ export function ProjectRoomView({ id }: { id: string }) {
       <Floor robots={robots} sessions={sessions} now={now} projectId={id} />
 
       <div className="two-col">
-        <NoData title="Manual testing progress" pass="Pass 2" />
         <NoData title="Automation progress" pass="Pass 3" />
-        <NoData title="Test execution results" pass="Pass 2/3" />
-        <NoData title="Open defects" pass="Pass 2" />
       </div>
+
+      <section className="card" data-room-qa>
+        <h3>Manual QA in this project</h3>
+        {qa && qa.testCases + qa.requirements + qa.defects.total + qa.tasks.total > 0 ? (
+          <div className="kpis">
+            <Kpi id="room-cases" label="Test cases" value={qa.testCases} how={`${qa.approvedTestCases} approved of ${qa.testCases} non-archived test cases.`} />
+            {qa.execution.resultsRecorded > 0 ? (
+              <Kpi id="room-results" label="Latest results" value={`${qa.execution.passed} passed · ${qa.execution.failed} failed · ${qa.execution.blocked} blocked`} how={`Latest finished result per approved test case, out of ${qa.execution.approvedTestCases} approved. ${qa.execution.pending} still pending.`} />
+            ) : (
+              <Kpi id="room-results" label="Latest results" nodata="No test has been executed yet" how="" />
+            )}
+            {qa.defects.total > 0 ? (
+              <Kpi id="room-defects" label="Open defects" value={qa.defects.open} how={`${qa.defects.open} of ${qa.defects.total} reported defects are not closed, rejected or duplicate.`} />
+            ) : (
+              <Kpi id="room-defects" label="Open defects" nodata="No defect has been reported yet" how="" />
+            )}
+            <Kpi id="room-tasks" label="Open tasks" value={qa.tasks.open} how={`${qa.tasks.open} of ${qa.tasks.total} tasks are not completed; ${qa.tasks.blocked} blocked.`} />
+          </div>
+        ) : (
+          <p className="muted">Nothing recorded yet. Requirements, test cases, runs, defects and tasks for this project are in <a href="#/manual">Manual QA</a>.</p>
+        )}
+      </section>
 
       <section className="card">
         <h3>Recent activity</h3>
@@ -155,6 +176,22 @@ export function ProjectRoomView({ id }: { id: string }) {
           <div className="row">
             <button className="ghost" onClick={() => setEditing(true)}>
               Edit project
+            </button>
+            <button
+              className="ghost"
+              data-launch-claude
+              onClick={async () => {
+                if (confirm(`Open a terminal in the folder of "${project.alias}" and start Claude Code there?`)) {
+                  try {
+                    await api.launchClaude(id);
+                    setMsg('A terminal window was opened. Its robot appears here once Claude Code starts working.');
+                  } catch (err) {
+                    setMsg(`Error: ${err instanceof ApiDetailError ? (err.detail || err.code) : String(err)}`);
+                  }
+                }
+              }}
+            >
+              Launch Claude Code here
             </button>
             <button
               className="ghost danger"

@@ -417,6 +417,21 @@ export interface QaTask {
 export interface QaTaskDetail extends QaTask {
   history: Array<{ id: string; at: string; actor: string; action: string; fromStage: string | null; toStage: string | null; note: string }>;
 }
+export interface ProjectQaSummary {
+  requirements: number;
+  testCases: number;
+  approvedTestCases: number;
+  execution: QaExecutionSummary;
+  defects: { total: number; open: number; openBySeverity: Record<string, number> };
+  tasks: { total: number; open: number; blocked: number };
+}
+export interface AgentSettings {
+  enabled: boolean;
+  mcpInstalled: boolean;
+  tools: string[];
+  activity: Array<{ at: string; tool: string; outcome: string; code: string; project: string | null }>;
+  lastRotatedAt: string | null;
+}
 export interface QaSummary {
   requirements: number;
   testCases: number;
@@ -478,6 +493,12 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 
 export const api = {
   demo: () => call<{ demo: boolean; banner: string }>('GET', '/api/demo'),
+  projectQaSummary: (pid: string) => call<ProjectQaSummary>('GET', `/api/projects/${pid}/qa-summary`),
+  agentSettings: () => call<AgentSettings>('GET', '/api/settings/agent'),
+  setAgentAccess: (enabled: boolean, confirm = false) => call<{ enabled: boolean }>('PUT', '/api/settings/agent', { enabled, confirm }),
+  rotateAgentToken: () => call<{ ok: true }>('POST', '/api/settings/agent/rotate-token'),
+  agentSetup: () => call<{ command: string; removeCommand: string }>('GET', '/api/settings/agent/setup'),
+  launchClaude: (projectId: string) => call<{ launched: true }>('POST', `/api/projects/${projectId}/launch-claude`, { confirm: true }),
   projects: () => call<Project[]>('GET', '/api/projects'),
   createProject: (p: { alias: string; path: string; type: string }) =>
     call<{ project: Project; warnings: string[]; relinkedSessions: number }>('POST', '/api/projects', p),

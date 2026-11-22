@@ -92,4 +92,5 @@ export function registerQaRoutes(app: FastifyInstance, deps: { db: DB; broadcast
   // ---------------------------------------------------------------- traceability and summary
   app.get<{ Params: { pid: string } }>('/api/projects/:pid/traceability', async (req) => qa.traceability(db, req.params.pid));
   app.get('/api/qa/summary', async () => qa.qaSummary(db));
+  app.get<{ Params: { pid: string } }>('/api/projects/:pid/qa-summary', async (req) => qa.projectQaSummary(db, req.params.pid));
 }

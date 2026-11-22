@@ -31,6 +31,9 @@ export interface DataDirPaths {
   spool: string;
   exports: string;
   evidence: string;
+  agentToken: string;
+  mcpDir: string;
+  mcpScript: string;
   logs: string;
   backups: string;
   settingsBackups: string;
@@ -51,6 +54,9 @@ export function dataDirPaths(root: string): DataDirPaths {
     spool: path.join(root, 'spool.jsonl'),
     exports: path.join(root, 'exports'),
     evidence: path.join(root, 'evidence'),
+    agentToken: path.join(root, 'agent-token'),
+    mcpDir: path.join(root, 'mcp'),
+    mcpScript: path.join(root, 'mcp', 'qa-office-mcp.mjs'),
     logs: path.join(root, 'logs'),
     backups: path.join(root, 'backups'),
     settingsBackups: path.join(root, 'backups', 'claude-settings'),
@@ -151,7 +157,7 @@ export function bootstrapDataDir(root: string, opts: { applyAcl?: boolean } = {}
   fs.mkdirSync(root, { recursive: true });
   const applyAcl = opts.applyAcl ?? true;
   if (applyAcl) applyOwnerOnlyAcl(root);
-  for (const d of [paths.hooksDir, paths.logs, paths.backups, paths.settingsBackups, paths.exports, paths.evidence]) {
+  for (const d of [paths.hooksDir, paths.logs, paths.backups, paths.settingsBackups, paths.exports, paths.evidence, paths.mcpDir]) {
     fs.mkdirSync(d, { recursive: true });
   }
   let token = fs.existsSync(paths.token) ? fs.readFileSync(paths.token, 'utf8').trim() : '';
@@ -159,9 +165,25 @@ export function bootstrapDataDir(root: string, opts: { applyAcl?: boolean } = {}
     token = crypto.randomBytes(32).toString('hex');
     writeFileAtomic(paths.token, token);
   }
+  if (!/^[a-f0-9]{64}$/.test(readAgentToken(paths))) writeFileAtomic(paths.agentToken, crypto.randomBytes(32).toString('hex'));
   if (!loadFolderKeySecret(paths)) writeFileAtomic(paths.folderKeySecret, JSON.stringify(generateFolderKeySecret()));
   void isNew;
   return { paths, token, aclApplied: applyAcl };
+}
+
+/** The agent token (a separate secret from the hook token): lets the local MCP server act as the limited "agent" identity. */
+export function readAgentToken(paths: DataDirPaths): string {
+  try {
+    return fs.readFileSync(paths.agentToken, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+/** Revokes the old agent token immediately and returns the new one. */
+export function rotateAgentToken(paths: DataDirPaths): string {
+  const next = crypto.randomBytes(32).toString('hex');
+  writeFileAtomic(paths.agentToken, next);
+  return next;
 }
 
 export function loadFolderKeySecret(paths: DataDirPaths): FolderKeySecret | null {

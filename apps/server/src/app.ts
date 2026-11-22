@@ -8,7 +8,8 @@ import type { WebSocket } from 'ws';
 import { projectRootKeys } from '@qavo/shared/folderKeys';
 import { AuthStore, clearedCookie, COOKIE_NAME, parseCookies, sessionCookie } from './auth.ts';
 import { ingest, ingestStatusLine, ValidationError, type Broadcast } from './collector.ts';
-import { loadFolderKeySecret, rotateFolderKeySecret, type DataDirPaths } from './dataDir.ts';
+import { loadFolderKeySecret, readAgentToken, rotateFolderKeySecret, type DataDirPaths } from './dataDir.ts';
+import { defaultLaunchClaude, registerAgentRoutes, type LaunchClaude } from './agentRoutes.ts';
 import type { DB } from './db/index.ts';
 import type { InstallContext } from './installer.ts';
 import { loggerOptions } from './logger.ts';
@@ -43,7 +44,7 @@ import {
   type ProjectPatch,
 } from './store.ts';
 
-export const VERSION = '0.6.0-pass2c';
+export const VERSION = '0.7.0-pass2d';
 const WEB_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
 
 export interface AppOptions {
@@ -61,6 +62,8 @@ export interface AppOptions {
   recovery?: Runtime['recovery'];
   /** Demo mode: fictional data; changing the real Claude Code settings is refused. */
   demo?: boolean;
+  /** Test seam for "Launch Claude Code here" (default opens a real terminal). */
+  launchClaude?: LaunchClaude;
 }
 
 export interface AppHandle {
@@ -90,6 +93,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   registerSecurity(app, {
     port,
     token: opts.token,
+    agentToken: () => readAgentToken(paths),
     isAuthenticated: authRequired ? (req) => auth.verifyHeader(req.headers.cookie) : undefined,
   });
   await app.register(fastifyWebsocket);
@@ -258,6 +262,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   registerQaRoutes(app, { db, broadcast });
   registerQaExecRoutes(app, { db, broadcast, evidenceDir: paths.evidence });
   registerQaWorkRoutes(app, { db, broadcast });
+  registerAgentRoutes(app, { db, paths, port, demo: opts.demo === true, launchClaude: opts.launchClaude ?? defaultLaunchClaude, broadcast: broadcast as (m: unknown) => void });
 
   // ------------------------------------------------------------------ static UI
   const dist = opts.webDist ?? WEB_DIST;

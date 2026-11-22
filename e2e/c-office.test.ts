@@ -116,7 +116,9 @@ describe('C5: no KPI renders without a real data source (empty office)', () => {
   it('project room and control room show "No data yet" panels for unbuilt modules', async () => {
     await page.goto(env.origin + `/#/projects/${projectId}`);
     await page.waitForSelector('[data-page="room"]');
-    expect((await page.$$('.nodata-panel')).length).toBeGreaterThanOrEqual(4);
+    // Automation is still unbuilt (Pass 3); Manual QA figures are real since 2B/2C and say so when nothing is recorded
+    expect((await page.$$('.nodata-panel')).length).toBeGreaterThanOrEqual(1);
+    expect(await page.textContent('[data-room-qa]')).toContain('Nothing recorded yet');
     await page.goto(env.origin + '/#/control');
     await page.waitForSelector('[data-page="control"]');
     expect((await page.$$('.nodata-panel')).length).toBeGreaterThanOrEqual(4);
