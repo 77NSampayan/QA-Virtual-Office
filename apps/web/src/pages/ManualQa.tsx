@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useLive } from '../live.tsx';
+import { DefectsPanel } from './qa/Defects.tsx';
 import { ExecutionPanel } from './qa/Execution.tsx';
+import { ExploratoryPanel } from './qa/Exploratory.tsx';
 import { RequirementsPanel } from './qa/Requirements.tsx';
+import { TaskBoardPanel } from './qa/TaskBoard.tsx';
 import { TestCasesPanel } from './qa/TestCases.tsx';
 import { TraceabilityPanel } from './qa/Traceability.tsx';
 
-type Tab = 'requirements' | 'test-cases' | 'execution' | 'traceability';
+export type Tab = 'requirements' | 'test-cases' | 'execution' | 'defects' | 'exploratory' | 'tasks' | 'traceability';
 const TABS: Array<[Tab, string]> = [
   ['requirements', 'Requirements'],
   ['test-cases', 'Test cases'],
   ['execution', 'Execution'],
+  ['defects', 'Defects'],
+  ['exploratory', 'Exploratory'],
+  ['tasks', 'Task board'],
   ['traceability', 'Traceability'],
 ];
 const KEY = 'qavo.manual.project';
@@ -22,11 +28,11 @@ const readSaved = () => {
 };
 
 /** Manual QA Department: requirements, test cases, execution with evidence, traceability (Pass 2A/2B). */
-export function ManualQa() {
+export function ManualQa({ initialTab = 'requirements' }: { initialTab?: Tab } = {}) {
   const { projects } = useLive();
   const active = projects.filter((p) => !p.archived);
   const [pid, setPid] = useState(readSaved);
-  const [tab, setTab] = useState<Tab>('requirements');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const current = active.find((p) => p.id === pid) ?? active[0];
 
   useEffect(() => {
@@ -73,11 +79,14 @@ export function ManualQa() {
           {tab === 'requirements' && <RequirementsPanel projectId={current.id} />}
           {tab === 'test-cases' && <TestCasesPanel projectId={current.id} />}
           {tab === 'execution' && <ExecutionPanel projectId={current.id} />}
+          {tab === 'defects' && <DefectsPanel projectId={current.id} />}
+          {tab === 'exploratory' && <ExploratoryPanel projectId={current.id} />}
+          {tab === 'tasks' && <TaskBoardPanel projectId={current.id} />}
           {tab === 'traceability' && <TraceabilityPanel projectId={current.id} />}
           <section className="card nodata-panel" data-coming-next>
             <h3>Coming next in the Manual QA department</h3>
             <p className="muted">
-              Defects, exploratory sessions and the task board (Pass 2C) · agent assistance that creates drafts only (Pass 2D).
+              Agent assistance that creates drafts only (Pass 2D): agents will be able to propose requirements, test cases, defects and tasks, and you stay the one who approves, passes and closes.
             </p>
           </section>
         </>

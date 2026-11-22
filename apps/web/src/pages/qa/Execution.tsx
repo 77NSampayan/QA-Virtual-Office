@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { EVIDENCE_MAX_BYTES, EXECUTION_STATUS_LABEL, type ExecutionStatus } from '@qavo/shared';
-import { api, type QaExecution, type QaExecutionDetail, type QaRun } from '../../api.ts';
+import { api, type QaDefect, type QaExecution, type QaExecutionDetail, type QaRun } from '../../api.ts';
 import { useLive } from '../../live.tsx';
 import { MsgLine, useMsg } from './Requirements.tsx';
 
@@ -38,8 +38,14 @@ function ExecutionDetail({ id, runOpen, onChanged }: { id: string; runOpen: bool
   const [actual, setActual] = useState('');
   const [evLabel, setEvLabel] = useState('');
   const [evBody, setEvBody] = useState('');
+  const [defects, setDefects] = useState<QaDefect[]>([]);
   const m = useMsg();
-  const load = useCallback(() => void api.execution(id).then(setD).catch(() => setD(null)), [id]);
+  const load = useCallback(() => {
+    void api.execution(id).then((x) => {
+      setD(x);
+      void api.defects(x.run.projectId, { executionId: id }).then(setDefects).catch(() => setDefects([]));
+    }).catch(() => setD(null));
+  }, [id]);
   useEffect(load, [load, qaVersion]);
   if (!d) return <p className="muted">Loading…</p>;
 
@@ -75,6 +81,15 @@ function ExecutionDetail({ id, runOpen, onChanged }: { id: string; runOpen: bool
       m.ok('File attached.');
       load();
       onChanged();
+    } catch (err) {
+      m.fail(err);
+    }
+  };
+  const raiseDefect = async () => {
+    try {
+      const x = await api.defectFromExecution(id);
+      m.ok(`${x.code} raised from this failed test (open it in the Defects tab).`);
+      load();
     } catch (err) {
       m.fail(err);
     }
@@ -128,6 +143,24 @@ function ExecutionDetail({ id, runOpen, onChanged }: { id: string; runOpen: bool
           Current: <ExecBadge status={d.status} /> by {d.executedBy ?? '—'} ({d.executorKind.replace('_', ' ')}){d.actualResult ? ` · actual: ${d.actualResult}` : ''}
           {d.note ? ` · note: ${d.note}` : ''}
         </p>
+      )}
+
+      {d.status === 'failed' && (
+        <div data-defects-box>
+          <h4>Defects ({defects.length})</h4>
+          {defects.length > 0 && (
+            <ul>
+              {defects.map((x) => (
+                <li key={x.id} data-linked-defect={x.code}>
+                  <strong>{x.code}</strong> {x.title} <span className="muted">· {x.status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button className="ghost" onClick={() => void raiseDefect()} data-raise-defect>
+            Raise defect from this failed test
+          </button>
+        </div>
       )}
 
       <h4>Evidence ({d.evidence.length})</h4>

@@ -56,7 +56,16 @@ export function Overview() {
             ? { value: x.pending, how: `Formula: approved test cases (${x.approvedTestCases}) minus those with a finished result. Draft, rejected and archived cases are not counted.` }
             : { nodata: 'Needs approved test cases', how: '' })}
         />
-        <Kpi id="defects" label="Open defects" nodata="Arrives with defect tracking (Pass 2)" how="" />
+        <Kpi
+          id="defects"
+          label="Open defects"
+          {...(qa && qa.defects.total > 0
+            ? {
+                value: qa.defects.open,
+                how: `Defects not yet closed, rejected or marked duplicate (${qa.defects.open} of ${qa.defects.total} reported). Open by severity: critical ${qa.defects.openBySeverity.critical ?? 0}, major ${qa.defects.openBySeverity.major ?? 0}, minor ${qa.defects.openBySeverity.minor ?? 0}, trivial ${qa.defects.openBySeverity.trivial ?? 0}.`,
+              }
+            : { nodata: 'No defect has been reported yet (Manual QA → Defects)', how: '' })}
+        />
       </div>
 
       <section className="card workload" data-workload>

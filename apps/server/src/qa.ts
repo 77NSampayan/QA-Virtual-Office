@@ -29,7 +29,9 @@ import {
   type TestCaseStatus,
 } from '@qavo/shared';
 import type { DB } from './db/index.ts';
+import { defectSummary, type DefectSummary } from './qaDefects.ts';
 import { executionSummary, type ExecutionSummary } from './qaExec.ts';
+import { taskSummary } from './qaWork.ts';
 import { HttpError, newId } from './store.ts';
 
 const nowIso = () => new Date().toISOString();
@@ -683,12 +685,14 @@ export function traceability(db: DB, projectId: string): Traceability {
 }
 
 /** Counts for the Overview KPIs (real records only). */
-export function qaSummary(db: DB): { requirements: number; testCases: number; testCasesAwaitingReview: number; execution: ExecutionSummary } {
+export function qaSummary(db: DB): { requirements: number; testCases: number; testCasesAwaitingReview: number; execution: ExecutionSummary; defects: DefectSummary; tasks: { total: number; open: number; blocked: number } } {
   const c = (sql: string) => (db.prepare(sql).get() as { c: number }).c;
   return {
     requirements: c('SELECT COUNT(*) AS c FROM requirements'),
     testCases: c('SELECT COUNT(*) AS c FROM test_cases WHERE archived = 0'),
     testCasesAwaitingReview: c("SELECT COUNT(*) AS c FROM test_cases WHERE archived = 0 AND status = 'in_review'"),
     execution: executionSummary(db),
+    defects: defectSummary(db),
+    tasks: taskSummary(db),
   };
 }

@@ -2,7 +2,7 @@
 
 A local-first, privacy-focused QA command center for Windows. Real Claude Code sessions show up as robots in a pixel-art QA office, alongside manual QA and test-automation workspaces.
 
-**Current checkpoint: Pass 2B, Manual QA: test execution and evidence.** (Pass 1, the office and desktop app, is complete.) Real Claude Code sessions appear as animated pixel-art robots at their workstations, grouped into Manual QA and Automation departments, with Project Rooms, a QA Control Room, robot customization and a notification center. Everything shown comes from real hook events; unbuilt modules say so. `npm run desktop` opens it as a Windows app with a tray icon, toast notifications and start-with-Windows. **Manual QA** (sidebar) manages requirements, test cases with a human-only approval workflow, traceability, and manual test runs with evidence (Execution tab).
+**Current checkpoint: Pass 2C, Manual QA: defects, exploratory sessions and the task board.** (Pass 1, the office and desktop app, is complete.) Real Claude Code sessions appear as animated pixel-art robots at their workstations, grouped into Manual QA and Automation departments, with Project Rooms, a QA Control Room, robot customization and a notification center. Everything shown comes from real hook events; unbuilt modules say so. `npm run desktop` opens it as a Windows app with a tray icon, toast notifications and start-with-Windows. **Manual QA** (sidebar) manages requirements, test cases with a human-only approval workflow, traceability, and manual test runs with evidence (Execution tab), defects, exploratory sessions and a task board.
 
 ## Quick start (Windows, Node ≥ 22.12)
 
@@ -59,3 +59,7 @@ Capture is **metadata-only**. No prompts, tool inputs or outputs, file contents,
 | `QAVO_DATA_DIR` | Override the data directory (tests) |
 | `QAVO_DEBUG_KEYS=1` | Forwarder logs payload **key names only** (never values), for schema discovery |
 | `CLAUDE_CONFIG_DIR` | Honoured by the installer |
+
+## Demo mode (preview the office without Claude Code)
+
+Run `npm run demo` (from a terminal opened at the project folder). It starts a second server on http://127.0.0.1:47822 with 9 fictional robots in every status, a fictional "Demo Shop" with requirements, test cases, a test run, defects, an exploratory session and tasks. Everything is marked **DEMO DATA**, lives in its own folder (`%LOCALAPPDATA%\QA Virtual Office Demo`, rebuilt on every start), never touches your real data or your Claude Code settings, and can run next to the real app. Stop it with Ctrl+C. Robot activity times are relative to the start, so restart it for a fresh "busy" office.

@@ -357,8 +357,8 @@ describe('the sprite gallery and placeholders', () => {
     expect(await page.$$('[data-gallery-status]')).toHaveLength(10);
     expect(await page.$$('[data-gallery-type]')).toHaveLength(7);
     await shot('sprite-gallery.png');
-    // (Manual QA is a real screen since Pass 2A; its own browser tests are in qa-2a.test.ts)
-    for (const [route, pass] of [['/automation', 'Pass 3'], ['/metrics', 'Pass 4'], ['/tasks', 'Pass 2']] as const) {
+    // (Manual QA is a real screen since Pass 2A and the Task Board since 2C; their browser tests are in qa-2a/qa-2c; its own browser tests are in qa-2a.test.ts)
+    for (const [route, pass] of [['/automation', 'Pass 3'], ['/metrics', 'Pass 4']] as const) {
       await page.goto(env.origin + '/#' + route);
       await page.waitForSelector('[data-coming]');
       expect(await page.textContent('[data-coming]')).toContain(`Arrives in ${pass}`);

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts"
+    "start": "tsx src/main.ts",
+    "demo": "tsx src/main.ts --demo"
   },
   "dependencies": {
     "@qavo/shared": "0.1.0",

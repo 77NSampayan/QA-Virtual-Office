@@ -13,8 +13,10 @@ import type { DB } from './db/index.ts';
 import type { InstallContext } from './installer.ts';
 import { loggerOptions } from './logger.ts';
 import { writePolicy } from './policyWriter.ts';
+import { DEMO_BANNER } from './demo.ts';
 import { registerQaExecRoutes } from './qaExecRoutes.ts';
 import { registerQaRoutes } from './qaRoutes.ts';
+import { registerQaWorkRoutes } from './qaWorkRoutes.ts';
 import { registerRoutes, type Runtime } from './routes.ts';
 import { registerSecurity } from './security.ts';
 import {
@@ -41,7 +43,7 @@ import {
   type ProjectPatch,
 } from './store.ts';
 
-export const VERSION = '0.5.0-pass2b';
+export const VERSION = '0.6.0-pass2c';
 const WEB_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
 
 export interface AppOptions {
@@ -57,6 +59,8 @@ export interface AppOptions {
   /** Require the session cookie for the UI API and WebSocket (default true). */
   authRequired?: boolean;
   recovery?: Runtime['recovery'];
+  /** Demo mode: fictional data; changing the real Claude Code settings is refused. */
+  demo?: boolean;
 }
 
 export interface AppHandle {
@@ -162,7 +166,17 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   });
 
   // ------------------------------------------------------------------ read APIs
-  app.get('/api/health', async () => ({ ok: true, version: VERSION, policyVersion: getSetting(db, 'policy_version', 0) }));
+  app.get('/api/health', async () => ({ ok: true, version: VERSION, policyVersion: getSetting(db, 'policy_version', 0), ...(opts.demo ? { demo: true } : {}) }));
+  app.get('/api/demo', async () => ({ demo: opts.demo === true, banner: opts.demo ? DEMO_BANNER : '' }));
+  if (opts.demo) {
+    // Defense in depth: even with a settings path inside the demo folder, never let the demo UI install or remove hooks.
+    app.addHook('onRequest', async (req, reply) => {
+      if (req.method !== 'GET' && /^\/api\/integration\/(hooks|statusline)\//.test(req.url)) {
+        return reply.code(403).send({ error: 'demo_mode', message: 'Demo mode never changes your Claude Code settings.' });
+      }
+      return undefined;
+    });
+  }
   app.get('/api/projects', async () => listProjects(db));
   app.get('/api/sessions', async () => listSessions(db));
   app.get<{ Params: { id: string } }>('/api/sessions/:id', async (req) => {
@@ -243,6 +257,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
 
   registerQaRoutes(app, { db, broadcast });
   registerQaExecRoutes(app, { db, broadcast, evidenceDir: paths.evidence });
+  registerQaWorkRoutes(app, { db, broadcast });
 
   // ------------------------------------------------------------------ static UI
   const dist = opts.webDist ?? WEB_DIST;

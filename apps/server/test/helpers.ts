@@ -5,6 +5,7 @@ import path from 'node:path';
 import { bootstrapDataDir } from '../src/dataDir.ts';
 import { openDb } from '../src/db/index.ts';
 import { buildApp, type AppHandle } from '../src/app.ts';
+import { seedDemo } from '../src/demo.ts';
 
 export async function freePort(): Promise<number> {
   return new Promise((resolve) => {
@@ -29,11 +30,12 @@ export interface TestEnv extends AppHandle {
   cleanup: () => Promise<void>;
 }
 
-export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean; auth?: boolean; webDist?: string } = {}): Promise<TestEnv> {
+export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean; auth?: boolean; webDist?: string; demo?: boolean } = {}): Promise<TestEnv> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qavo-srv-'));
   const dataDir = path.join(root, 'data');
   const { paths, token } = bootstrapDataDir(dataDir, { applyAcl: opts.applyAcl ?? false });
   const db = openDb(paths.db);
+  if (opts.demo) seedDemo(db, dataDir);
   const port = await freePort();
   const settingsPath = path.join(root, 'claude', 'settings.json');
   const handle = await buildApp({
@@ -45,6 +47,7 @@ export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean; auth
     webDist: opts.webDist ?? path.join(root, 'no-web'),
     claudeSettingsPath: settingsPath,
     authRequired: opts.auth ?? false,
+    ...(opts.demo ? { demo: true } : {}),
     installOverrides: { nodePath: process.execPath },
   });
   handle.regeneratePolicy();

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, unauthorizedListeners } from './api.ts';
 import { LiveProvider } from './live.tsx';
-import { Automation, ApiTesting, Metrics, TaskBoard, TestData } from './pages/Placeholders.tsx';
+import { Automation, ApiTesting, Metrics, TestData } from './pages/Placeholders.tsx';
 import { ManualQa } from './pages/ManualQa.tsx';
 import { Control } from './pages/Control.tsx';
 import { Notifications } from './pages/Notifications.tsx';
@@ -40,7 +40,7 @@ function Routes({ onSignOut }: { onSignOut: () => void }) {
     case '/manual':
       return <ManualQa />;
     case '/tasks':
-      return <TaskBoard />;
+      return <ManualQa key="tasks" initialTab="tasks" />;
     case '/automation':
       return <Automation />;
     case '/api-testing':

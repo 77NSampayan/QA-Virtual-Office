@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { api } from './api.ts';
 import { useLive } from './live.tsx';
 import { useRoute } from './router.ts';
 import { needsAttention } from './ui.tsx';
@@ -18,9 +19,13 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => setOpen(false), [route]);
 
   const attention = sessions.filter((s) => needsAttention(s) && Date.now() - s.lastEventAt <= 24 * 3600_000).length;
+  const [demo, setDemo] = useState<{ demo: boolean; banner: string }>({ demo: false, banner: '' });
   useEffect(() => {
-    document.title = `${attention > 0 ? `(${attention}) ` : ''}QA Virtual Office`;
-  }, [attention]);
+    void api.demo().then(setDemo).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    document.title = `${demo.demo ? 'DEMO · ' : ''}${attention > 0 ? `(${attention}) ` : ''}QA Virtual Office`;
+  }, [attention, demo.demo]);
 
   const groups: Array<{ title: string; items: NavItem[] }> = [
     {
@@ -38,7 +43,7 @@ export function Shell({ children }: { children: ReactNode }) {
         { to: '/automation', label: 'Test Automation', soon: 'Pass 3' },
         { to: '/api-testing', label: 'API Testing', soon: 'Pass 3' },
         { to: '/test-data', label: 'Test Data', soon: 'Pass 3' },
-        { to: '/tasks', label: 'Task Board', soon: 'Pass 2' },
+        { to: '/tasks', label: 'Task Board' },
         { to: '/metrics', label: 'Metrics', soon: 'Pass 4' },
       ],
     },
@@ -62,10 +67,15 @@ export function Shell({ children }: { children: ReactNode }) {
           ☰
         </button>
         <h1>QA Virtual Office</h1>
+        {demo.demo && (
+          <span className="pill demo-pill" data-demo-pill>
+            DEMO DATA
+          </span>
+        )}
         <span className={`pill ws ${wsState}`} data-ws={wsState}>
           {wsState === 'live' ? 'live' : wsState}
         </span>
-        {integration && (
+        {integration && !demo.demo && (
           <span className="muted hide-narrow">
             hooks: {integration.hooks.state.replace('_', ' ')} · scope: {integration.scope === 'registered' ? 'registered projects only' : 'all sessions'}
           </span>
@@ -86,9 +96,20 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           ))}
         </nav>
-        <main className="content">{children}</main>
+        <main className="content">
+          {demo.demo && (
+            <p className="demo-banner" role="status" data-demo-banner>
+              <strong>DEMO DATA.</strong> {demo.banner.replace(/^DEMO DATA:?\s*/, '')}
+            </p>
+          )}
+          {children}
+        </main>
       </div>
-      <footer className="muted">Local only · metadata-only capture by default · “~” marks statuses inferred from tool activity · robots show real events only</footer>
+      <footer className="muted">
+        {demo.demo
+          ? 'DEMO MODE · fictional data in a separate folder · hooks and Claude settings are not used'
+          : 'Local only · metadata-only capture by default · “~” marks statuses inferred from tool activity · robots show real events only'}
+      </footer>
     </div>
   );
 }

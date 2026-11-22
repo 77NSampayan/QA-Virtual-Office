@@ -331,11 +331,99 @@ export interface QaExecutionSummary {
   openRuns: number;
   passRate: QaRatio;
 }
+export interface QaDefect {
+  id: string;
+  projectId: string;
+  code: string;
+  title: string;
+  description: string;
+  steps: string;
+  expectedResult: string;
+  actualResult: string;
+  environment: string;
+  build: string;
+  severity: string;
+  priority: string;
+  status: string;
+  assignee: string;
+  testCaseId: string | null;
+  testCaseCode: string | null;
+  executionId: string | null;
+  runCode: string | null;
+  duplicateOfId: string | null;
+  duplicateOfCode: string | null;
+  reportedBy: string;
+  closedBy: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface QaDefectDetail extends QaDefect {
+  history: Array<{ id: string; at: string; actor: string; action: string; fromStatus: string | null; toStatus: string | null; note: string }>;
+}
+export interface QaDefectInput {
+  title: string;
+  description?: string;
+  steps?: string;
+  expectedResult?: string;
+  actualResult?: string;
+  environment?: string;
+  build?: string;
+  severity?: string;
+  priority?: string;
+  assignee?: string;
+}
+export interface QaExploratory {
+  id: string;
+  projectId: string;
+  code: string;
+  charter: string;
+  area: string;
+  tester: string;
+  timeboxMinutes: number;
+  status: 'planned' | 'in_progress' | 'completed';
+  summary: string;
+  createdBy: string;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  noteCount: number;
+  bugCount: number;
+}
+export interface QaExploratoryDetail extends QaExploratory {
+  notes: Array<{ id: string; kind: string; text: string; defectId: string | null; defectCode: string | null; createdBy: string; createdAt: string }>;
+}
+export interface QaTask {
+  id: string;
+  projectId: string;
+  code: string;
+  title: string;
+  description: string;
+  kind: string;
+  priority: string;
+  stage: string;
+  assignee: string;
+  dueDate: string | null;
+  defectId: string | null;
+  defectCode: string | null;
+  testCaseId: string | null;
+  testCaseCode: string | null;
+  createdBy: string;
+  completedBy: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface QaTaskDetail extends QaTask {
+  history: Array<{ id: string; at: string; actor: string; action: string; fromStage: string | null; toStage: string | null; note: string }>;
+}
 export interface QaSummary {
   requirements: number;
   testCases: number;
   testCasesAwaitingReview: number;
   execution: QaExecutionSummary;
+  defects: { total: number; open: number; openBySeverity: Record<string, number> };
+  tasks: { total: number; open: number; blocked: number };
 }
 export interface QaTestCaseInput {
   scenario?: string;
@@ -389,6 +477,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 }
 
 export const api = {
+  demo: () => call<{ demo: boolean; banner: string }>('GET', '/api/demo'),
   projects: () => call<Project[]>('GET', '/api/projects'),
   createProject: (p: { alias: string; path: string; type: string }) =>
     call<{ project: Project; warnings: string[]; relinkedSessions: number }>('POST', '/api/projects', p),
@@ -447,6 +536,26 @@ export const api = {
   archiveTestCase: (id: string, archived: boolean) => call<QaTestCase>('POST', `/api/test-cases/${id}/archive`, { archived }),
   traceability: (pid: string) => call<QaTraceability>('GET', `/api/projects/${pid}/traceability`),
   qaSummary: () => call<QaSummary>('GET', '/api/qa/summary'),
+  defects: (pid: string, f: Record<string, string> = {}) =>
+    call<QaDefect[]>('GET', `/api/projects/${pid}/defects?${new URLSearchParams(Object.entries(f).filter(([, v]) => v !== '')).toString()}`),
+  defect: (id: string) => call<QaDefectDetail>('GET', `/api/defects/${id}`),
+  createDefect: (pid: string, b: QaDefectInput) => call<QaDefect>('POST', `/api/projects/${pid}/defects`, b),
+  defectFromExecution: (execId: string, b: Partial<QaDefectInput> = {}) => call<QaDefect>('POST', `/api/executions/${execId}/defect`, b),
+  updateDefect: (id: string, b: Partial<QaDefectInput>) => call<QaDefect>('PATCH', `/api/defects/${id}`, b),
+  transitionDefect: (id: string, b: { to: string; note?: string; duplicateOfId?: string }) => call<QaDefectDetail>('POST', `/api/defects/${id}/transition`, b),
+  commentDefect: (id: string, note: string) => call<QaDefectDetail>('POST', `/api/defects/${id}/comments`, { note }),
+  exploratorySessions: (pid: string) => call<QaExploratory[]>('GET', `/api/projects/${pid}/exploratory`),
+  exploratory: (id: string) => call<QaExploratoryDetail>('GET', `/api/exploratory/${id}`),
+  createExploratory: (pid: string, b: { charter: string; area?: string; tester?: string; timeboxMinutes?: number }) => call<QaExploratory>('POST', `/api/projects/${pid}/exploratory`, b),
+  startExploratory: (id: string) => call<QaExploratory>('POST', `/api/exploratory/${id}/start`),
+  completeExploratory: (id: string, summary: string) => call<QaExploratory>('POST', `/api/exploratory/${id}/complete`, { summary }),
+  addExploratoryNote: (id: string, b: { kind: string; text: string }) => call<QaExploratoryDetail>('POST', `/api/exploratory/${id}/notes`, b),
+  defectFromNote: (noteId: string, b: { severity?: string; priority?: string } = {}) => call<{ defect: QaDefect; session: QaExploratoryDetail }>('POST', `/api/exploratory-notes/${noteId}/defect`, b),
+  tasks: (pid: string) => call<QaTask[]>('GET', `/api/projects/${pid}/tasks`),
+  task: (id: string) => call<QaTaskDetail>('GET', `/api/tasks/${id}`),
+  createTask: (pid: string, b: { title: string; description?: string; kind?: string; priority?: string; assignee?: string; dueDate?: string | null }) => call<QaTask>('POST', `/api/projects/${pid}/tasks`, b),
+  updateTask: (id: string, b: Partial<{ title: string; description: string; kind: string; priority: string; assignee: string; dueDate: string | null }>) => call<QaTask>('PATCH', `/api/tasks/${id}`, b),
+  moveTask: (id: string, to: string, note = '') => call<QaTaskDetail>('POST', `/api/tasks/${id}/move`, { to, note }),
   runs: (pid: string) => call<QaRun[]>('GET', `/api/projects/${pid}/test-runs`),
   createRun: (pid: string, b: { name: string; environment?: string; build?: string; testCaseIds?: string[]; addAllApproved?: boolean }) =>
     call<QaRun & { skipped: string[] }>('POST', `/api/projects/${pid}/test-runs`, b),

@@ -16,6 +16,7 @@
     "build:web": "npm run build -w @qavo/web",
     "build": "npm run build:forwarder && npm run build:web",
     "start": "npm run build && npm run start -w @qavo/server",
+    "demo": "npm run build && npm run demo -w @qavo/server",
     "dev:server": "npm run dev -w @qavo/server",
     "dev:web": "npm run dev -w @qavo/web",
     "test": "vitest run",

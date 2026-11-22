@@ -1,14 +1,6 @@
 import { ComingSoon } from '../ui.tsx';
 
 /** Modules that are specified but not built yet. They say so plainly and show no fake data. */
-export const TaskBoard = () => (
-  <ComingSoon
-    title="QA Task Board"
-    pass="Pass 2"
-    intro="Backlog, Ready, In Progress, Waiting for Review, Blocked and Completed, with tasks assignable to a QA role or a Claude Code session."
-    items={['Tasks are never auto-assigned to an agent unless you configure that behaviour']}
-  />
-);
 export const Automation = () => (
   <ComingSoon
     title="Test Automation Department"
