@@ -6,6 +6,8 @@ import { PermissionPanel } from '../PermissionPanel.tsx';
 import { StatusPill, typeOf } from '../ui.tsx';
 import { clampCamera, clampZoom, fitCamera, followStep, MAX_ZOOM, MIN_ZOOM, panBy, zoomAt, type Camera } from './camera.ts';
 import { buildOffice, TILE, type RoomSpec } from './map.ts';
+import { api, type Playbook } from '../api.ts';
+import { useLive } from '../live.tsx';
 import { drawFrame, hitRobot, paintStatic } from './paint.ts';
 import { lightFor } from './light.ts';
 import { useOfficePrefs } from './prefs.ts';
@@ -23,6 +25,17 @@ const ago = (ms: number, now: number) => {
   if (sec < 86_400) return `${Math.round(sec / 3600)}h ago`;
   return `${Math.round(sec / 86_400)}d ago`;
 };
+
+/** The room that holds one desk per agent. */
+export const TEAM_ROOM = 'team';
+
+function deskLabelOf(roomKey: string, index: number, playbooks: readonly Playbook[], scene: OfficeScene | null): { text: string; dim: boolean } | null {
+  if (roomKey !== TEAM_ROOM) return null;
+  const p = playbooks[index];
+  if (!p) return null;
+  const seated = scene?.deskOwner(TEAM_ROOM, index)?.zone === 'desk';
+  return { text: p.available ? p.agentName : `${p.agentName} · later`, dim: !seated };
+}
 
 export interface OfficeViewProps {
   robots: Robot[];
@@ -51,6 +64,12 @@ export function OfficeView({ robots, sessions, projects, now, showAll, onClassic
   const [ver, setVer] = useState(0);
   const mountedAt = useRef(Date.now());
   const prefs = useOfficePrefs();
+  // the agents' desks: one per role, in roster order (names follow renames)
+  const { qaVersion } = useLive();
+  const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
+  useEffect(() => void api.playbooks().then(setPlaybooks).catch(() => undefined), [qaVersion]);
+  const playbooksRef = useRef(playbooks);
+  playbooksRef.current = playbooks;
   // the viewer's local clock, refreshed every 30 s (light and seasons change slowly)
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
@@ -68,12 +87,15 @@ export function OfficeView({ robots, sessions, projects, now, showAll, onClassic
     for (const r of robots) {
       const s = latest.get(r.id);
       if (!s || (!showAll && now - s.lastEventAt > DAY_MS)) continue;
-      const roomKey = s.projectId && active.some((p) => p.id === s.projectId) ? s.projectId : 'unassigned';
+      const deskIndex = r.playbookId ? playbooks.findIndex((p) => p.id === r.playbookId) : -1;
+      const atTeamDesk = deskIndex >= 0; // an agent's robot sits at its own desk in the QA Team room, whichever project it works on
+      const roomKey = atTeamDesk ? TEAM_ROOM : s.projectId && active.some((p) => p.id === s.projectId) ? s.projectId : 'unassigned';
       out.push({
         id: r.id,
         name: r.name,
         status: s.status,
         roomKey,
+        ...(atTeamDesk ? { deskIndex } : {}),
         type: typeOf(r),
         palette: r.palette,
         activity: s.activity,
@@ -82,13 +104,14 @@ export function OfficeView({ robots, sessions, projects, now, showAll, onClassic
     }
     return out.sort((a, b) => a.id.localeCompare(b.id));
     // `now` only matters for the 24 h cut-off; recompute at most once a minute
-  }, [robots, latest, active, showAll, Math.floor(now / 60_000)]);
+  }, [robots, latest, active, showAll, playbooks, Math.floor(now / 60_000)]);
   const specs: RoomSpec[] = useMemo(() => {
-    const list: RoomSpec[] = active.map((p) => ({ key: p.id, label: p.alias, robots: inputs.filter((i) => i.roomKey === p.id).length }));
+    const list: RoomSpec[] = playbooks.length ? [{ key: TEAM_ROOM, label: 'QA Team', robots: playbooks.length }] : [];
+    list.push(...active.map((p) => ({ key: p.id, label: p.alias, robots: inputs.filter((i) => i.roomKey === p.id).length })));
     const un = inputs.filter((i) => i.roomKey === 'unassigned').length;
     if (un > 0) list.push({ key: 'unassigned', label: 'Unregistered folders', robots: un });
     return list;
-  }, [active, inputs]);
+  }, [active, inputs, playbooks.length]);
   const labelOf = useMemo(() => new Map(specs.map((s) => [s.key, s.label])), [specs]);
 
   const specsKey = JSON.stringify(specs.map((s) => [s.key, s.label, s.robots]));
@@ -233,7 +256,7 @@ export function OfficeView({ robots, sessions, projects, now, showAll, onClassic
       }
       if (dirty.current || scene.isAnimating()) {
         const ctx = canvasRef.current?.getContext('2d');
-        if (ctx) drawFrame(ctx, scene, staticRef.current, cam.current, view.current, { frame: frameRef.current, selectedId: selectedRef.current, dpr: dprRef.current, now: Date.now(), roomLabel: (k) => labelRef.current.get(k) ?? k, light: lightRef.current, theme: themeRef.current });
+        if (ctx) drawFrame(ctx, scene, staticRef.current, cam.current, view.current, { frame: frameRef.current, selectedId: selectedRef.current, dpr: dprRef.current, now: Date.now(), roomLabel: (k) => labelRef.current.get(k) ?? k, deskLabel: (k, i) => deskLabelOf(k, i, playbooksRef.current, sceneRef.current), light: lightRef.current, theme: themeRef.current });
         dirty.current = false;
         writeAttrs();
       }
@@ -438,6 +461,17 @@ export function OfficeView({ robots, sessions, projects, now, showAll, onClassic
             {m.name}: {STATUS_LABEL[m.status]}, {zoneText[m.zone]}
           </li>
         ))}
+      </ul>
+      <ul className="sr-only" data-office-team aria-label="Agent desks in the QA Team room">
+        {playbooks.map((p, i) => {
+          const owner = scene.deskOwner(TEAM_ROOM, i);
+          const state = !p.available ? 'later' : owner?.zone === 'desk' ? 'at-desk' : owner ? 'away' : 'empty';
+          return (
+            <li key={p.id} data-desk-index={i} data-agent={p.agentName} data-role={p.role} data-state={state} data-robot={owner?.id ?? ''}>
+              {p.agentName} ({p.role}): {state === 'at-desk' ? 'at the desk' : state === 'away' ? 'running, away from the desk' : state === 'later' ? 'arrives in Pass 3' : 'not running'}
+            </li>
+          );
+        })}
       </ul>
       <ul className="sr-only" data-office-drones aria-label="Subagent drones">
         {drones.map((d) => (

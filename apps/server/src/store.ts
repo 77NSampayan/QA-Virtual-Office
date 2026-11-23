@@ -19,6 +19,7 @@ import {
   parsePalette,
 } from '@qavo/shared';
 import { lexicalForm, canonicalForm, normalizeWinPath, type PathForms } from '@qavo/shared/paths';
+import type { Actor } from '@qavo/shared';
 import type { DB } from './db/index.ts';
 
 export const newId = (prefix: string) => `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
@@ -293,6 +294,8 @@ export interface RobotDTO {
   robotType: string;
   role: string;
   projectId: string | null;
+  /** Set when this robot belongs to a named agent (a launched playbook): its name follows the agent. */
+  playbookId: string | null;
   palette: RobotPalette;
 }
 
@@ -302,7 +305,7 @@ export function assignRobot(db: DB, projectId: string | null, origin: SessionOri
       .prepare(
         `SELECT r.id FROM robots r
          WHERE (r.project_id IS ? OR r.project_id = ?)
-           AND r.playbook_id IS NULL
+           AND r.playbook_id IS NULL AND r.retired = 0
            AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.robot_id = r.id AND s.status <> 'disconnected')
          ORDER BY r.created_at LIMIT 1`,
       )
@@ -337,23 +340,42 @@ export function assignAgentRobot(db: DB, who: { projectId: string; playbookId: s
   return getRobot(db, id)!;
 }
 
-type RobotRow = { id: string; name: string; robot_type: string; role: string; project_id: string | null; palette_json: string };
+type RobotRow = { id: string; name: string; robot_type: string; role: string; project_id: string | null; playbook_id: string | null; palette_json: string };
 const robotDto = (r: RobotRow): RobotDTO => ({
   id: r.id,
   name: r.name,
   robotType: r.robot_type,
   role: r.role,
   projectId: r.project_id,
+  playbookId: r.playbook_id ?? null,
   palette: parsePalette(r.palette_json, r.robot_type),
 });
 
 export function getRobot(db: DB, id: string): RobotDTO | null {
-  const r = db.prepare('SELECT id, name, robot_type, role, project_id, palette_json FROM robots WHERE id = ?').get(id) as RobotRow | undefined;
+  const r = db.prepare('SELECT id, name, robot_type, role, project_id, playbook_id, palette_json FROM robots WHERE id = ?').get(id) as RobotRow | undefined;
   return r ? robotDto(r) : null;
 }
 
 export function listRobots(db: DB): RobotDTO[] {
-  return (db.prepare('SELECT id, name, robot_type, role, project_id, palette_json FROM robots ORDER BY created_at, id').all() as RobotRow[]).map(robotDto);
+  return (db.prepare('SELECT id, name, robot_type, role, project_id, playbook_id, palette_json FROM robots WHERE retired = 0 ORDER BY created_at, id').all() as RobotRow[]).map(robotDto);
+}
+
+export const RETIRE_QUIET_MS = 10 * 60_000;
+
+/**
+ * A person hides a robot they no longer want in the office. Refused while its session looks alive (an event in the last
+ * 10 minutes), because hiding a working robot would just be confusing. Nothing is deleted; the robot returns by itself
+ * if its session sends a new event.
+ */
+export function retireRobot(db: DB, id: string, actor: Actor, now = Date.now()): { id: string; retired: true } {
+  if (actor !== 'human') throw new HttpError(403, 'human_required', 'Only a person can retire a robot');
+  const r = db.prepare('SELECT id, playbook_id FROM robots WHERE id = ?').get(id) as { id: string; playbook_id: string | null } | undefined;
+  if (!r) throw new HttpError(404, 'robot_not_found');
+  if (r.playbook_id) throw new HttpError(409, 'robot_belongs_to_agent', 'This robot belongs to an agent. It appears whenever that agent runs.');
+  const last = (db.prepare('SELECT MAX(last_event_at) AS t FROM sessions WHERE robot_id = ?').get(id) as { t: number | null }).t;
+  if (last !== null && now - last < RETIRE_QUIET_MS) throw new HttpError(409, 'robot_recently_active', 'This robot had an event in the last 10 minutes. End its Claude Code session first, or try again later.');
+  db.prepare('UPDATE robots SET retired = 1 WHERE id = ?').run(id);
+  return { id, retired: true };
 }
 
 export interface RobotPatch {
@@ -376,6 +398,7 @@ export function updateRobot(db: DB, id: string, patch: RobotPatch): RobotDTO {
   if (patch.name !== undefined) {
     if (typeof patch.name !== 'string' || !ROBOT_NAME_RE.test(patch.name.trim())) throw new HttpError(400, 'name_invalid', 'Name must be 1-30 characters without path characters');
     name = patch.name.trim();
+    if (cur.playbookId && name !== cur.name) throw new HttpError(409, 'name_follows_agent', 'This robot belongs to an agent: rename the agent instead (Team page).');
   }
   if (patch.robotType !== undefined) {
     if (!isRobotType(patch.robotType)) throw new HttpError(400, 'robot_type_invalid');

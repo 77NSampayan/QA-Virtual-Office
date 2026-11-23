@@ -409,6 +409,8 @@ export interface FrameOptions {
   now: number;
   /** Label of the project that owns each room key (for the wall signs). */
   roomLabel: (key: string) => string;
+  /** Name plate under a desk (the QA Team room): dimmed while nobody sits there. */
+  deskLabel?: (roomKey: string, index: number) => { text: string; dim: boolean } | null;
   light: Light;
   theme: Theme;
 }
@@ -443,6 +445,20 @@ export function drawFrame(ctx: CanvasRenderingContext2D, scene: OfficeScene, sta
     ctx.fillText(text, p.x, p.y);
   };
   for (const r of scene.map.rooms) sign(r.vacant ? 'Vacant room' : o.roomLabel(r.key), (r.x0 + 1) * TILE + 3, (r.y0 + 1) * TILE + 7, r.vacant ? '#7b87a8' : '#e8eef9');
+  if (o.deskLabel) {
+    for (const r of scene.map.rooms) {
+      for (const d of r.desks) {
+        const l = o.deskLabel(r.key, d.index);
+        if (!l) continue;
+        const p = worldToScreen(cam, view, (d.desk.x + 1) * TILE, (d.desk.y + 1) * TILE + 6);
+        if (!onScreen(p, 200)) continue;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = l.dim ? '#7b87a8' : '#ffe9a8';
+        ctx.fillText(l.text, p.x, p.y);
+        ctx.textAlign = 'start';
+      }
+    }
+  }
   sign('Lobby', 3 * TILE, 1.5 * TILE + 4, '#e8eef9');
   sign('Lounge & kitchen', (scene.map.lounge.x0 + 2) * TILE, 0.5 * TILE + 8, '#bff3d0');
   sign('Hallway', (scene.map.lounge.x0 - 7) * TILE, (scene.map.hallway.y0 + 1.5) * TILE, '#5b6788');

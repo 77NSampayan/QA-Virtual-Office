@@ -21,6 +21,8 @@ export interface PlaybookDTO {
   purpose: string;
   agentName: string;
   defaultName: string;
+  /** The robot look this agent takes in the office. */
+  robotType: string;
   houseRules: string;
   /** Tools the agent may use that exist today. */
   tools: string[];
@@ -52,6 +54,7 @@ function dto(p: PlaybookDef, r: { agent_name: string; house_rules: string }): Pl
     purpose: p.purpose,
     agentName: r.agent_name,
     defaultName: p.defaultName,
+    robotType: p.robotType,
     houseRules: r.house_rules,
     tools: p.tools.filter((t) => live.has(t)),
     plannedTools: p.tools.filter((t) => !live.has(t)),

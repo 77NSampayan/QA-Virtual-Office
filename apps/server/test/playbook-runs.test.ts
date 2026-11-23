@@ -245,6 +245,21 @@ describe('the office link: a launched agent gets its own robot', () => {
     expect(robotOf('s-revoked').name).toMatch(/^Unit-/);
   });
 
+  it('keeps an agent robot’s name tied to the agent (look stays editable), and marks which robots belong to agents', async () => {
+    send('s-quinn', 'SessionStart', { source: 'startup', runId: (await launch('case_writer')).runId });
+    send('s-plain', 'SessionStart', { source: 'startup' });
+    const robots = (await ui('GET', '/api/robots')).body as Array<{ id: string; name: string; playbookId: string | null }>;
+    const quinn = robots.find((r) => r.name === 'Quinn')!;
+    const plain = robots.find((r) => r.name.startsWith('Unit-'))!;
+    expect(quinn.playbookId).toBe('case_writer');
+    expect(plain.playbookId).toBeNull();
+    const rename = await ui('PATCH', `/api/robots/${quinn.id}`, { name: 'Impostor' });
+    expect(rename.status).toBe(409);
+    expect(rename.body.error).toBe('name_follows_agent');
+    expect((await ui('PATCH', `/api/robots/${quinn.id}`, { name: 'Quinn', palette: { primary: '#112233', accent: '#445566' } })).status).toBe(200); // same name + new colours is fine
+    expect((await ui('PATCH', `/api/robots/${plain.id}`, { name: 'Scout' })).body.name).toBe('Scout'); // ordinary robots stay renamable
+  });
+
   it('rejects a malformed run id at the door', async () => {
     const r = await call(hookHeaders(env), 'POST', '/api/hooks', { v: 1, eventId: crypto.randomUUID(), ts: new Date().toISOString(), sessionId: 's', event: 'SessionStart', projectId: pid, folderKeys: [], runId: 'nope; DROP' });
     expect(r.status).toBe(400);

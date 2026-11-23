@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ALL_STATUSES, ROBOT_TYPES, ROBOT_TYPE_INFO, STATUS_ANIMATION, STATUS_LABEL, type RobotStatus, type RobotType } from '@qavo/shared';
-import { api, ApiError, type Robot } from '../api.ts';
-import { useLive } from '../live.tsx';
-import { RobotSprite, StationSprite } from '../sprites/Sprite.tsx';
-import { agoIso, StatusPill, typeOf, useNow } from '../ui.tsx';
+import { api, ApiError, type Robot } from './api.ts';
+import { useLive } from './live.tsx';
+import { RobotSprite, StationSprite } from './sprites/Sprite.tsx';
+import { agoIso, StatusPill, typeOf, useNow } from './ui.tsx';
 
-function RobotEditor({ robot }: { robot: Robot }) {
+/** One robot's identity and look. `nameLocked` for an agent's robot: its name is the agent's name (rename the agent instead). */
+export function RobotEditor({ robot, nameLocked = false, onRetire }: { robot: Robot; nameLocked?: boolean; onRetire?: () => void }) {
   const { sessionOf, refresh } = useLive();
   const now = useNow();
   const session = sessionOf(robot.id);
@@ -64,7 +65,7 @@ function RobotEditor({ robot }: { robot: Robot }) {
       <div className="editor-form">
         <label>
           Name
-          <input value={name} maxLength={30} onChange={(e) => setName(e.target.value)} />
+          <input value={name} maxLength={30} onChange={(e) => setName(e.target.value)} disabled={nameLocked} title={nameLocked ? 'This robot belongs to an agent: rename the agent above' : undefined} data-robot-name />
         </label>
         <label>
           Appearance
@@ -111,6 +112,13 @@ function RobotEditor({ robot }: { robot: Robot }) {
             Save
           </button>
         </div>
+        {onRetire && (
+          <div className="row">
+            <button className="ghost" data-robot-retire onClick={onRetire} title="Hide this robot from the office. Nothing is deleted, and it returns by itself if its session becomes active again.">
+              Retire this robot
+            </button>
+          </div>
+        )}
         <p className="hint">Roles are logical roles in this app; Claude Code has no native specialised agent types.</p>
         {msg && <p className={msg.ok ? 'ok' : 'error'}>{msg.text}</p>}
       </div>
@@ -118,16 +126,3 @@ function RobotEditor({ robot }: { robot: Robot }) {
   );
 }
 
-export function Robots() {
-  const { robots } = useLive();
-  return (
-    <div className="page" data-page="robots">
-      <h2>Robots</h2>
-      <p className="hint">A robot is created when a Claude Code session starts and keeps its identity (name, look, colours, role) across sessions and restarts.</p>
-      {robots.length === 0 && <p className="muted">No robots yet. Start Claude Code in a registered project.</p>}
-      {robots.map((r) => (
-        <RobotEditor key={r.id} robot={r} />
-      ))}
-    </div>
-  );
-}

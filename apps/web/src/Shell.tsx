@@ -50,8 +50,7 @@ export function Shell({ children }: { children: ReactNode }) {
     {
       title: 'Team and system',
       items: [
-        { to: '/robots', label: 'Robots' },
-        { to: '/agents', label: 'Agents' },
+        { to: '/team', label: 'Team' },
         { to: '/notifications', label: 'Notifications', badge: unread },
         { to: '/sessions', label: 'Sessions' },
         { to: '/settings', label: 'Settings' },

@@ -478,3 +478,58 @@ describe('scene sound events (only for real changes)', () => {
     expect(s.drainSounds()).toEqual(['complete']);
   });
 });
+
+describe('the QA Team room: every agent has its own desk', () => {
+  const team = () => new OfficeScene(buildOffice([spec('team', 9), spec('shop', 4)]));
+  const agent = (id: string, status: RobotStatus, deskIndex: number): RobotInput => ({ ...robot(id, status, 'team'), deskIndex });
+  const deskOf = (s: OfficeScene, id: string) => s.actors.get(id)!.goal.key;
+
+  it('seats each agent at the desk it was given, whatever order the robots arrive in', () => {
+    const s = team();
+    s.sync([agent('quinn', 'analyzing', 1), agent('rhea', 'analyzing', 2), agent('bram', 'analyzing', 7)], { initial: true });
+    expect(deskOf(s, 'quinn')).toBe('desk:team:1');
+    expect(deskOf(s, 'rhea')).toBe('desk:team:2');
+    expect(deskOf(s, 'bram')).toBe('desk:team:7');
+    const s2 = team();
+    s2.sync([agent('bram', 'analyzing', 7), agent('rhea', 'analyzing', 2), agent('quinn', 'analyzing', 1)], { initial: true });
+    expect([deskOf(s2, 'quinn'), deskOf(s2, 'rhea'), deskOf(s2, 'bram')]).toEqual(['desk:team:1', 'desk:team:2', 'desk:team:7']);
+  });
+
+  it('keeps empty desks empty (nobody is invented), and the team room has a desk for every role', () => {
+    const s = team();
+    const room = s.map.rooms.find((r) => r.key === 'team')!;
+    expect(room.vacant).toBe(false);
+    expect(room.desks.length).toBeGreaterThanOrEqual(9);
+    s.sync([agent('quinn', 'analyzing', 1)], { initial: true });
+    expect(s.deskOwner('team', 1)?.id).toBe('quinn');
+    for (const i of [0, 2, 3, 4, 5, 6, 7, 8]) expect(s.deskOwner('team', i)).toBeUndefined();
+  });
+
+  it('an agent at rest goes to the lounge, leaving its desk empty, and returns to the same desk when it works again', () => {
+    const s = team();
+    s.sync([agent('quinn', 'analyzing', 3)], { initial: true });
+    s.sync([agent('quinn', 'completed', 3)]);
+    run(s, 8);
+    expect(s.actors.get('quinn')!.zone).toBe('lounge');
+    s.sync([agent('quinn', 'analyzing', 3)]);
+    run(s, 12);
+    expect(s.actors.get('quinn')!.zone).toBe('desk');
+    expect(deskOf(s, 'quinn')).toBe('desk:team:3');
+  });
+
+  it('never moves without an event, and a taken desk falls back to a free one instead of sharing', () => {
+    const s = team();
+    s.sync([agent('quinn-a', 'analyzing', 1), agent('quinn-b', 'analyzing', 1)], { initial: true }); // the same agent on two projects
+    expect(new Set([deskOf(s, 'quinn-a'), deskOf(s, 'quinn-b')]).size).toBe(2);
+    const before = [...s.actors.values()].map((a) => [a.x, a.y]);
+    run(s, 10);
+    expect([...s.actors.values()].map((a) => [a.x, a.y])).toEqual(before);
+    expect(s.isWalking()).toBe(false);
+  });
+
+  it('ordinary robots without a fixed desk are unaffected', () => {
+    const s = team();
+    s.sync([robot('plain', 'analyzing', 'shop')], { initial: true });
+    expect(deskOf(s, 'plain')).toBe('desk:shop:0');
+  });
+});

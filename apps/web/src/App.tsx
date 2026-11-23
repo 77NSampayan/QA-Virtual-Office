@@ -3,19 +3,24 @@ import { api, unauthorizedListeners } from './api.ts';
 import { LiveProvider } from './live.tsx';
 import { Automation, ApiTesting, Metrics, TestData } from './pages/Placeholders.tsx';
 import { ManualQa } from './pages/ManualQa.tsx';
-import { Agents } from './pages/Agents.tsx';
 import { Control } from './pages/Control.tsx';
 import { Notifications } from './pages/Notifications.tsx';
 import { Overview } from './pages/Overview.tsx';
-import { Robots } from './pages/Robots.tsx';
 import { ProjectRoomView, RoomsList } from './pages/Rooms.tsx';
 import { Sessions } from './pages/Sessions.tsx';
 import { SpriteGallery } from './pages/SpriteGallery.tsx';
-import { useRoute } from './router.ts';
+import { Team } from './pages/Team.tsx';
+import { navigate, useRoute } from './router.ts';
 import { Settings } from './Settings.tsx';
 import { Shell } from './Shell.tsx';
 
 type AuthState = 'checking' | 'ok' | 'denied';
+
+/** Old addresses (Robots, Agents) lead to the Team page. */
+function Redirect({ to }: { to: string }) {
+  useEffect(() => navigate(to), [to]);
+  return <div className="page muted">Opening the Team page…</div>;
+}
 
 function Routes({ onSignOut }: { onSignOut: () => void }) {
   const route = useRoute();
@@ -28,10 +33,11 @@ function Routes({ onSignOut }: { onSignOut: () => void }) {
       return <RoomsList />;
     case '/control':
       return <Control />;
-    case '/robots':
-      return <Robots />;
+    case '/team':
+      return <Team />;
+    case '/robots': // the Robots and Agents pages are now one Team page; old links still work
     case '/agents':
-      return <Agents />;
+      return <Redirect to="/team" />;
     case '/notifications':
       return <Notifications />;
     case '/sessions':

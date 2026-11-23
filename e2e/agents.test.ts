@@ -35,8 +35,8 @@ beforeAll(async () => {
   page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   await page.goto(env.createLaunchUrl());
   await page.waitForSelector('[data-page="overview"]');
-  await page.goto(env.origin + '/#/agents');
-  await page.waitForSelector('[data-page="agents"] [data-playbook]');
+  await page.goto(env.origin + '/#/team');
+  await page.waitForSelector('[data-page="team"] [data-playbook]');
 });
 afterAll(async () => {
   await browser?.close();
@@ -46,7 +46,7 @@ afterAll(async () => {
 describe('Agents page', () => {
   it('shows the roster in the sidebar and page, with writer/reviewer pairs and no way to widen tools', async () => {
     expect(await page.locator('[data-playbook]').count()).toBe(9);
-    expect(await page.locator('nav a', { hasText: 'Agents' }).count()).toBe(1);
+    expect(await page.locator('nav a', { hasText: 'Team' }).count()).toBe(1);
     expect(await page.textContent(`${card('case_writer')} [data-pb-title]`)).toBe('Quinn');
     expect(await page.textContent(`${card('case_writer')} [data-pb-reviewer]`)).toMatch(/Rhea \(Test Case Reviewer\)/);
     expect(await page.textContent(`${card('case_reviewer')} [data-pb-tools]`)).not.toMatch(/qa_create_test_case_draft/);
@@ -104,7 +104,7 @@ describe('Run this playbook, runs, attribution and the office robot', () => {
     fs.mkdirSync(dir);
     pid = (await api('POST', '/api/projects', { alias: 'Shop Web', path: dir })).body.project.id;
     await api('PUT', '/api/settings/agent', { enabled: true, confirm: true });
-    await page.goto(env.origin + '/#/agents');
+    await page.goto(env.origin + '/#/team');
     await page.reload();
     await page.waitForSelector('[data-playbook]');
     expect(await page.locator(`${card('automation_writer')} [data-pb-run]`).count()).toBe(0); // not available yet: no Run button
@@ -137,8 +137,79 @@ describe('Run this playbook, runs, attribution and the office robot', () => {
     await page.waitForSelector('[data-tc-drafted-by="Quinn"]');
     expect(await page.textContent('[data-tc-drafted-by="Quinn"]')).toMatch(/drafted by Quinn/);
 
-    await page.goto(env.origin + '/#/robots');
+    await page.goto(env.origin + '/#/team');
     await page.waitForFunction(() => Array.from(document.querySelectorAll('[data-robot-editor] input')).some((i) => (i as HTMLInputElement).value === 'Quinn'));
     expect((await api('GET', '/api/robots')).body.find((x: { name: string }) => x.name === 'Quinn')).toMatchObject({ robotType: 'manual_tester' });
+  });
+});
+
+describe('Team page: agents and robots in one place', () => {
+  const robotsApi = async () => (await api('GET', '/api/robots')).body as Array<{ id: string; name: string; playbookId: string | null; robotType: string }>;
+  const shopId = () => (env.db.prepare("SELECT id FROM projects WHERE alias = 'Shop Web'").get() as { id: string }).id;
+  const sendEvent = (sessionId: string, event: string, extra: Record<string, unknown> = {}) =>
+    ingest(env.db, { v: 1, eventId: crypto.randomUUID(), ts: new Date().toISOString(), sessionId, event, projectId: shopId(), folderKeys: [], ...extra }, env.broadcast);
+
+  it('shows Team in the sidebar instead of Robots and Agents, and the old addresses lead to it', async () => {
+    await page.goto(env.origin + '/#/team');
+    await page.waitForSelector('[data-page="team"] [data-playbook]');
+    const labels = await page.locator('nav a').allTextContents();
+    expect(labels.map((l) => l.trim())).toContain('Team');
+    expect(labels.map((l) => l.trim())).not.toContain('Robots');
+    expect(labels.map((l) => l.trim())).not.toContain('Agents');
+    for (const old of ['#/robots', '#/agents']) {
+      await page.goto(env.origin + '/#/manual');
+      await page.evaluate((h) => (location.hash = h), old);
+      await page.waitForSelector('[data-page="team"] [data-playbook]');
+      expect(await page.evaluate(() => location.hash)).toBe('#/team');
+    }
+  });
+
+  it('shows an agent’s live state from its real session, and "not running" once it ends', async () => {
+    await page.goto(env.origin + '/#/team');
+    await page.waitForSelector(`${card('case_writer')}`);
+    await page.waitForSelector(`${card('case_writer')} [data-pb-live="running"]`);
+    expect(await page.textContent(`${card('case_writer')} [data-pb-session]`)).toMatch(/Working in Shop Web/);
+    expect(await page.locator(`${card('case_reviewer')} [data-pb-live="idle"]`).count()).toBe(1); // Rhea never ran
+    expect(await page.textContent(`${card('case_reviewer')} [data-pb-live]`)).toMatch(/Not running/);
+    sendEvent('s-quinn', 'SessionEnd', { reason: 'other', runId: launches[launches.length - 1]!.run!.runId });
+    await page.waitForSelector(`${card('case_writer')} [data-pb-live="idle"]`);
+    expect(await page.textContent(`${card('case_writer')} [data-pb-live]`)).toMatch(/Not running/);
+  });
+
+  it('keeps an agent’s robot name tied to the agent, but lets its look be customised', async () => {
+    const quinnBot = (await robotsApi()).find((r) => r.name === 'Quinn')!;
+    expect(quinnBot.playbookId).toBe('case_writer');
+    await page.goto(env.origin + '/#/team');
+    await page.waitForSelector(`${card('case_writer')} [data-pb-look] [data-robot-name]`, { state: 'attached' });
+    expect(await page.isDisabled(`${card('case_writer')} [data-pb-look] [data-robot-name]`)).toBe(true);
+    const rename = await api('PATCH', `/api/robots/${quinnBot.id}`, { name: 'Impostor' });
+    expect(rename.status).toBe(409);
+    expect(rename.body.error).toBe('name_follows_agent');
+    const look = await api('PATCH', `/api/robots/${quinnBot.id}`, { palette: { primary: '#112233', accent: '#445566' } });
+    expect(look.status).toBe(200);
+    expect(look.body).toMatchObject({ name: 'Quinn', palette: { primary: '#112233' } });
+    // renaming the agent renames its robot the next time it runs (covered by the server tests); here the card follows live
+    expect((await robotsApi()).find((r) => r.id === quinnBot.id)!.name).toBe('Quinn');
+  });
+
+  it('lists the robots of ordinary sessions separately, where their name stays editable', async () => {
+    sendEvent('s-plain', 'SessionStart', { source: 'startup' });
+    await page.goto(env.origin + '/#/team');
+    await page.waitForSelector('[data-others]');
+    const plain = (await robotsApi()).find((r) => r.name.startsWith('Unit-'))!;
+    expect(plain.playbookId).toBeNull();
+    await page.waitForSelector(`[data-robot-editor="${plain.id}"]`);
+    expect(await page.locator(`[data-playbook] [data-robot-editor="${plain.id}"]`).count()).toBe(0); // not inside an agent card
+    expect(await page.isDisabled(`[data-robot-editor="${plain.id}"] [data-robot-name]`)).toBe(false);
+    expect((await api('PATCH', `/api/robots/${plain.id}`, { name: 'Scout' })).status).toBe(200);
+  });
+
+  it('has no horizontal scroll at phone width', async () => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto(env.origin + '/#/team');
+    await page.reload();
+    await page.waitForSelector('[data-playbook]');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    await page.setViewportSize({ width: 1280, height: 900 });
   });
 });

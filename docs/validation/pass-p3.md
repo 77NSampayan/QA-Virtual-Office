@@ -63,3 +63,15 @@ Agent **names are a history, not just a setting**: each draft keeps the name of 
 - Reviews cover manual test cases only. Automation scripts and API tests (Pass 3) will reuse the same table; defect review is not built (Bram's work is reviewed by a person).
 - No review is required before approval (your choice to add a rule such as "approve only reviewed cases" later).
 - The reviewing agent is trusted to read carefully; the server only guarantees who wrote and who reviewed.
+
+## Team page (merges Robots and Agents)
+
+The **Robots** and **Agents** pages are now one **Team** page (`#/team`; the old addresses redirect). Underneath nothing merged: a role (playbook) exists before any session, and an ordinary session has a robot but no role, so the two stay separate records.
+
+- **Agents:** one card per role with its robot sprite and live state ("Working in <project>" from its real session, or "Not running"), tools, playbook, checklist, name and house rules, the Run button, and a collapsible **Look and colours** editor for its robot(s). A role has a robot only after it has been run.
+- **Other sessions:** the generic robots (`Unit-NN`) of plain Claude Code sessions, editable as before.
+- **Recent runs** with Stop.
+- An agent robot's **name is the agent's name** (the server refuses a rename of such a robot, `name_follows_agent`; rename the agent instead). Its look and colours stay editable.
+- Live state comes only from real hook events, like the office; nothing is shown as running without a session.
+
+Evidence: `e2e/agents.test.ts` (Team page group: sidebar, old addresses, live state, name lock, other sessions, 360 px), `apps/server/test/playbook-runs.test.ts` (name lock and `playbookId`), `e2e/c-office.test.ts` (robot customisation, now on the Team page).

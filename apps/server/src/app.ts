@@ -41,6 +41,7 @@ import {
   sessionDto,
   unreadCount,
   updateProject,
+  retireRobot,
   updateRobot,
   type RobotPatch,
   type ProjectInput,
@@ -208,6 +209,11 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
 
   // ------------------------------------------------------------------ robots, activity, rooms
   app.get('/api/robots', async () => robotsWithSession(db));
+  app.post<{ Params: { id: string } }>('/api/robots/:id/retire', async (req) => {
+    const r = retireRobot(db, req.params.id, 'human');
+    broadcast({ type: 'robots.changed' });
+    return r;
+  });
   app.patch<{ Params: { id: string }; Body: RobotPatch }>('/api/robots/:id', async (req) => {
     const robot = updateRobot(db, req.params.id, req.body ?? {});
     broadcast({ type: 'robot.updated', robot });

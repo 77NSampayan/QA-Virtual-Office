@@ -15,6 +15,8 @@ export interface Robot {
   robotType: string;
   role: string;
   projectId: string | null;
+  /** Set for a robot that belongs to a named agent. */
+  playbookId: string | null;
   palette: { primary: string; accent: string };
 }
 export interface ActivityItem {
@@ -201,6 +203,7 @@ export interface Playbook {
   purpose: string;
   agentName: string;
   defaultName: string;
+  robotType: string;
   houseRules: string;
   tools: string[];
   plannedTools: string[];
@@ -635,6 +638,7 @@ export const api = {
   playbooks: () => call<Playbook[]>('GET', '/api/playbooks'),
   updatePlaybook: (id: string, b: { agentName?: string; houseRules?: string }) => call<Playbook>('PATCH', `/api/playbooks/${id}`, b),
   resetPlaybook: (id: string) => call<Playbook>('POST', `/api/playbooks/${id}/reset`),
+  retireRobot: (id: string) => call<{ id: string; retired: true }>('POST', `/api/robots/${id}/retire`),
   handToAgent: (id: string, playbookId: string) => call<{ code: string; draftedBy: string }>('POST', `/api/test-cases/${id}/hand-to-agent`, { playbookId }),
   importTestCases: (pid: string, b: { text: string; dryRun?: boolean }) => call<QaTestCaseImportResult>('POST', `/api/projects/${pid}/test-cases/import`, b),
   createTestCase: (pid: string, b: QaTestCaseInput) => call<QaTestCase>('POST', `/api/projects/${pid}/test-cases`, b),

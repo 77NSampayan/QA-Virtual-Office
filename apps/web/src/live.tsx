@@ -92,6 +92,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
             if (s?.robot) setRobots((prev) => (prev.some((r) => r.id === s.robot!.id) ? prev.map((r) => (r.id === s.robot!.id && JSON.stringify(r) !== JSON.stringify(s.robot) ? s.robot! : r)) : [...prev, s.robot!]));
             break;
           }
+          case 'robots.changed':
+            void refresh().catch(() => undefined);
+            break;
           case 'permission.changed':
             setPermissionVersion((v) => v + 1);
             break;

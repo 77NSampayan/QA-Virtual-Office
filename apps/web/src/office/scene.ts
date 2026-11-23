@@ -34,6 +34,8 @@ export interface RobotInput {
   name: string;
   status: RobotStatus;
   roomKey: string;
+  /** A fixed desk in the room (the QA Team room gives every agent its own desk). */
+  deskIndex?: number;
   type: RobotType;
   palette: RobotPalette;
   /** Current tool (metadata only), for the activity bubble. */
@@ -122,7 +124,8 @@ export class OfficeScene {
     }
     const cur = this.home.get(input.id);
     const taken = new Set([...this.home.entries()].filter(([id, h]) => id !== input.id && h.roomKey === room.key).map(([, h]) => h.index));
-    let index = cur && cur.roomKey === room.key && cur.index < room.desks.length && !taken.has(cur.index) ? cur.index : -1;
+    const want = input.deskIndex !== undefined && input.deskIndex < room.desks.length && !taken.has(input.deskIndex) ? input.deskIndex : -1;
+    let index = want >= 0 ? want : cur && cur.roomKey === room.key && cur.index < room.desks.length && !taken.has(cur.index) ? cur.index : -1;
     if (index < 0) index = room.desks.findIndex((d) => !taken.has(d.index));
     if (index < 0) index = room.desks.length - 1;
     this.home.set(input.id, { roomKey: room.key, index });

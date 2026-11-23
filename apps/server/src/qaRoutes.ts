@@ -23,8 +23,16 @@ export function registerQaRoutes(app: FastifyInstance, deps: { db: DB; broadcast
 
   // ---------------------------------------------------------------- agent playbooks (person only: rename, house rules)
   app.get('/api/playbooks', async () => listPlaybooks(db));
-  app.patch<{ Params: { id: string }; Body: unknown }>('/api/playbooks/:id', async (req) => updatePlaybook(db, req.params.id, req.body, human));
-  app.post<{ Params: { id: string } }>('/api/playbooks/:id/reset', async (req) => resetPlaybook(db, req.params.id, human));
+  app.patch<{ Params: { id: string }; Body: unknown }>('/api/playbooks/:id', async (req) => {
+    const r = updatePlaybook(db, req.params.id, req.body, human);
+    changed('playbook');
+    return r;
+  });
+  app.post<{ Params: { id: string } }>('/api/playbooks/:id/reset', async (req) => {
+    const r = resetPlaybook(db, req.params.id, human);
+    changed('playbook');
+    return r;
+  });
 
   // ---------------------------------------------------------------- requirements
   app.get<{ Params: { pid: string } }>('/api/projects/:pid/requirements', async (req) => qa.listRequirements(db, req.params.pid));

@@ -189,6 +189,7 @@ export function ingest(db: DB, body: unknown, broadcast: Broadcast, origin: Even
       meta.robotId = assignRobot(db, meta.projectId, created?.origin ?? t.state.origin).id;
     }
 
+    if (meta.robotId) db.prepare('UPDATE robots SET retired = 0 WHERE id = ? AND retired = 1').run(meta.robotId); // alive again: show it
     saveSession(db, t.state, meta);
     if (ev.folderKeys.length) addFolderKeys(db, ev.sessionId, ev.folderKeys);
 

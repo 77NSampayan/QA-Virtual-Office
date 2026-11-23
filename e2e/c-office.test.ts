@@ -293,7 +293,7 @@ describe('notifications center', () => {
 
 describe('C3: robot customization', () => {
   it('rename, re-skin and recolour a robot from the Robots page; it shows on the floor and survives a reload', async () => {
-    await page.goto(env.origin + '/#/robots');
+    await page.goto(env.origin + '/#/team');
     await page.waitForSelector('[data-robot-editor]');
     const editor = page.locator('[data-robot-editor]').first();
     const id = await editor.getAttribute('data-robot-editor');
@@ -314,7 +314,7 @@ describe('C3: robot customization', () => {
   });
 
   it('the animation preview is clearly labelled as preview, not real state', async () => {
-    await page.goto(env.origin + '/#/robots');
+    await page.goto(env.origin + '/#/team');
     await page.waitForSelector('[data-robot-editor]');
     const editor = page.locator('[data-robot-editor]').first();
     await editor.locator('select').first().selectOption('failed');
@@ -325,7 +325,7 @@ describe('C3: robot customization', () => {
 });
 
 describe('C4: layout works at 360 px', () => {
-  const routes = ['/', '/projects', `/projects/PID`, '/control', '/robots', '/notifications', '/sessions', '/settings', '/sprites', '/manual', '/automation', '/api-testing', '/test-data', '/tasks', '/metrics'];
+  const routes = ['/', '/projects', `/projects/PID`, '/control', '/team', '/notifications', '/sessions', '/settings', '/sprites', '/manual', '/automation', '/api-testing', '/test-data', '/tasks', '/metrics'];
   it('no horizontal page scroll on any screen, and the floor collapses to status cards', async () => {
     const mctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2 });
     const mp = await mctx.newPage();

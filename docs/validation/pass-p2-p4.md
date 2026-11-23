@@ -25,7 +25,7 @@
 | P2-5 | The agent's playbook (with the person's house rules, no folder paths) becomes its instructions; the shared token and failures keep the generic ones | **Pass** | `playbook-runs.test.ts`, `apps/mcp/test/protocol.test.ts` |
 | P4-1 | Forwarder adds a valid run id and ignores malformed ones; nothing else about the run is sent | **Pass** | `apps/forwarder/test/forwarder.test.ts` |
 | P4-2 | Robot named/styled from the agent, reused, never in the ordinary pool, follows renames; unknown, revoked, expired or wrong-project run ids are ignored; malformed run id rejected at the door | **Pass** | `playbook-runs.test.ts` |
-| P2/P4-6 | Browser: Run button (disabled until a project is chosen; none for unavailable roles), run list, Stop, "drafted by" label, Quinn's robot on the Robots page | **Pass** | `e2e/agents.test.ts` (found that a renamed robot kept its old name in the live view; fixed) |
+| P2/P4-6 | Browser: Run button (disabled until a project is chosen; none for unavailable roles), run list, Stop, "drafted by" label, Quinn robot on the Team page | **Pass** | `e2e/agents.test.ts` (found that a renamed robot kept its old name in the live view; fixed) |
 
 ## NOT verified (I cannot run a live Claude Code here), please test once
 1. That `claude --mcp-config <file> --strict-mcp-config "<sentence>"` starts as intended from the console that opens (quoting of the config path, which contains a space, goes through `cmd.exe /k`). If the console shows an error, tell me what it prints.

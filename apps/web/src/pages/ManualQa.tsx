@@ -83,12 +83,6 @@ export function ManualQa({ initialTab = 'requirements' }: { initialTab?: Tab } =
           {tab === 'exploratory' && <ExploratoryPanel projectId={current.id} />}
           {tab === 'tasks' && <TaskBoardPanel projectId={current.id} />}
           {tab === 'traceability' && <TraceabilityPanel projectId={current.id} />}
-          <section className="card nodata-panel" data-coming-next>
-            <h3>Coming next in the Manual QA department</h3>
-            <p className="muted">
-              Agent assistance that creates drafts only (Pass 2D): agents will be able to propose requirements, test cases, defects and tasks, and you stay the one who approves, passes and closes.
-            </p>
-          </section>
         </>
       )}
     </div>
