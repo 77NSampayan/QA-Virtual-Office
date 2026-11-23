@@ -22,7 +22,9 @@ export interface SecurityOptions {
   hooksBurst?: number;
 }
 
-export const TOKEN_ROUTES = new Set(['/api/hooks', '/api/statusline', '/api/auth/launch-nonce']);
+export const TOKEN_ROUTES = new Set(['/api/hooks', '/api/statusline', '/api/auth/launch-nonce', '/api/permission-hook/request']);
+/** Token routes that carry an id in the path (the permission hook waiting for an answer). */
+const isTokenRoute = (url: string) => TOKEN_ROUTES.has(url) || /^\/api\/permission-hook\/wait\/[A-Za-z0-9_-]{1,64}$/.test(url);
 const AUTH_EXEMPT = new Set(['/api/health', '/api/auth/status']);
 const SENSITIVE_GET = [/^\/api\/projects\/[^/]+\/path$/, /^\/api\/settings\/excludes$/, /^\/api\/settings\/agent\/setup$/];
 
@@ -63,7 +65,7 @@ export function registerSecurity(app: FastifyInstance, opts: SecurityOptions) {
     const url = req.url.split('?')[0]!;
     const origin = req.headers.origin;
 
-    if (TOKEN_ROUTES.has(url)) {
+    if (isTokenRoute(url)) {
       if (origin !== undefined) return deny(req, reply, 403, 'origin_not_allowed');
       const tok = req.headers['x-qavo-token'];
       if (typeof tok !== 'string' || !timingSafeEq(tok, opts.token)) return deny(req, reply, 401, 'bad_token');

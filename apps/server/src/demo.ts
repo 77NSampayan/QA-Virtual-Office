@@ -73,8 +73,10 @@ export function seedDemo(db: DB, dir: string, broadcast: Broadcast = () => undef
     { id: 'demo-s5', project: 'api', name: 'Gatekeeper', type: 'regression_tester', startedMinAgo: 18, steps: [['UserPromptSubmit'], ['PermissionRequest', { toolName: 'Bash' }]] },
     { id: 'demo-s6', project: 'shop', name: 'Sherlock', type: 'bug_investigator', startedMinAgo: 15, steps: [['UserPromptSubmit'], ['Notification', { notificationType: 'elicitation_dialog' }]] },
     { id: 'demo-s7', project: 'api', name: 'Captain QA', type: 'qa_lead', startedMinAgo: 12, steps: [['UserPromptSubmit'], ['PreToolUse', { toolName: 'Read' }], ['Stop']] },
-    { id: 'demo-s8', project: 'shop', name: 'Echo', type: 'manual_tester', startedMinAgo: 40, steps: [['UserPromptSubmit'], ['Stop'], ['SessionEnd', { reason: 'other' }]] },
+    { id: 'demo-s10', project: 'shop', name: 'Moss', type: 'manual_tester', startedMinAgo: 14, steps: [] },
+    { id: 'demo-s11', project: 'api', name: 'Dash', type: 'api_tester', startedMinAgo: 11, steps: [['UserPromptSubmit'], ['PreToolUse', { toolName: 'Read' }], ['Stop']] },
     { id: 'demo-s9', project: 'api', name: 'Rusty', type: 'automation_engineer', startedMinAgo: 9, steps: [['UserPromptSubmit'], ['PreToolUse', { toolName: 'Bash', commandCategory: 'build' }], ['StopFailure', { error: 'rate_limit' }]] },
+    { id: 'demo-s8', project: 'shop', name: 'Echo', type: 'manual_tester', startedMinAgo: 40, steps: [['UserPromptSubmit'], ['Stop'], ['SessionEnd', { reason: 'other' }]] },
   ];
   let step = 0;
   const post = (sessionId: string, projectId: string, event: string, extra: Record<string, unknown> | undefined, minAgo: number) => {

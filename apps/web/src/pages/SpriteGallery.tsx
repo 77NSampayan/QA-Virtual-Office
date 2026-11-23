@@ -1,5 +1,6 @@
 import { ALL_STATUSES, ROBOT_TYPES, ROBOT_TYPE_INFO, STATUS_ANIMATION, STATUS_COLOR, STATUS_LABEL } from '@qavo/shared';
-import { DroneSprite, RobotSprite, StationSprite } from '../sprites/Sprite.tsx';
+import { NOOK_KINDS, NOOK_LABEL, NOOK_VERB } from '../sprites/nook.ts';
+import { DroneSprite, NookSprite, RobotSprite, StationSprite } from '../sprites/Sprite.tsx';
 
 /** Reference sheet of every robot type and status animation. Static design reference, NOT live data. */
 export function SpriteGallery() {
@@ -34,6 +35,27 @@ export function SpriteGallery() {
               <figcaption>
                 <strong>{ROBOT_TYPE_INFO[t].label}</strong>
                 <span className="muted">{ROBOT_TYPE_INFO[t].workstation}</span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
+      <section className="card">
+        <h3>Lounge furniture</h3>
+        <p className="hint">Robots rest here only while their real status is idle or completed.</p>
+        <div className="gallery wide">
+          {NOOK_KINDS.map((k, i) => (
+            <figure key={k} data-gallery-nook={k}>
+              <div className="stage nook-stage">
+                <RobotSprite type={ROBOT_TYPES[(i * 2) % ROBOT_TYPES.length]!} status={i === 1 ? 'completed' : 'idle'} palette={ROBOT_TYPE_INFO[ROBOT_TYPES[(i * 2) % ROBOT_TYPES.length]!].defaultPalette} scale={4} className="in-nook" />
+                <div className="nook-pair">
+                  <NookSprite kind={k} palette={ROBOT_TYPE_INFO[ROBOT_TYPES[(i * 2) % ROBOT_TYPES.length]!].defaultPalette} layer="back" />
+                  <NookSprite kind={k} palette={ROBOT_TYPE_INFO[ROBOT_TYPES[(i * 2) % ROBOT_TYPES.length]!].defaultPalette} layer="front" />
+                </div>
+              </div>
+              <figcaption>
+                <strong>{NOOK_LABEL[k]}</strong>
+                <span className="muted">{NOOK_VERB[k]}</span>
               </figcaption>
             </figure>
           ))}

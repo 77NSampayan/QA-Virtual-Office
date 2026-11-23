@@ -7,7 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const banner = {
   js: '// QA Virtual Office forwarder - generated file, do not edit.\n// Metadata-only: sanitizes payloads locally before anything leaves this process.',
 };
-for (const name of ['forward', 'statusline']) {
+for (const name of ['forward', 'statusline', 'permission']) {
   await build({
     entryPoints: [path.join(here, `src/${name}.ts`)],
     outfile: path.join(here, `dist/${name}.mjs`),

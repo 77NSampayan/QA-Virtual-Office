@@ -133,3 +133,7 @@ Used on opted-in content, log lines and (Pass 1B) export output. Matches are rep
 ## Agents and QA data (Pass 2D)
 
 When a person enables agent access, a connected Claude Code agent can read QA records (requirements, test cases, defects, tasks, notes) and the model provider processes what the agent reads. To limit exposure: everything returned to an agent is redacted again (emails, phone numbers, cards, keys, tokens…), project folder paths and internal ids are never returned, evidence files and screenshots are not available to agents, and the audit log records only which tool ran, on which project, with what outcome. Keep test data fictional or masked: redaction is a safety net, not a licence to enter customer data.
+
+## Permission requests (V4b)
+
+If you turn on the permission bridge, a request shows a short redacted description of what Claude Code wants to do (only when tool-input capture is on; paths are masked and nothing from inside a file is shown). It exists only while the request is open and is erased when you answer or it expires; afterwards only the tool name, project and result are kept for a week. Nothing from a permission request is sent anywhere outside this PC.

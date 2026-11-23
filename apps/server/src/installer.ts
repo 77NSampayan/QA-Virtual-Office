@@ -18,7 +18,7 @@ import { HOOK_EVENTS } from '@qavo/shared';
 import { writeFileAtomic, type DataDirPaths } from './dataDir.ts';
 
 export const HOOK_TIMEOUT_SECONDS = 10;
-const FORWARDER_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../forwarder/dist');
+export const FORWARDER_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../forwarder/dist');
 const BUILT_FORWARDER = path.join(FORWARDER_DIST, 'forward.mjs');
 const BUILT_STATUSLINE = path.join(FORWARDER_DIST, 'statusline.mjs');
 
@@ -39,13 +39,13 @@ export interface InstallContext {
   statuslineSource?: string;
 }
 
-interface HookHandler {
+export interface HookHandler {
   type?: string;
   command?: string;
   args?: unknown[];
   [k: string]: unknown;
 }
-interface HookGroup {
+export interface HookGroup {
   matcher?: string;
   hooks?: HookHandler[];
   [k: string]: unknown;
@@ -57,11 +57,12 @@ interface StatusLineSetting {
   refreshInterval?: number;
   [k: string]: unknown;
 }
-type Settings = Record<string, unknown> & { hooks?: Record<string, HookGroup[]>; statusLine?: StatusLineSetting };
+export type Settings = Record<string, unknown> & { hooks?: Record<string, HookGroup[]>; statusLine?: StatusLineSetting };
 
-interface Manifest {
+export interface Manifest {
   forwarderPath?: string;
   nodePath?: string;
+  permissionHook?: { installedAt: string; createdHooksKey: boolean; createdEventKey: boolean };
   hooks?: { installedAt: string; createdHooksKey: boolean; createdEventKeys: string[] };
   statusLine?: { installedAt: string; hadOriginal: boolean; original?: StatusLineSetting };
 }
@@ -85,7 +86,7 @@ export function resolveNodePath(): string {
   throw new Error('node_not_found: Node.js is required to run the hook forwarder');
 }
 
-const norm = (p: string) => path.resolve(p).toLowerCase();
+export const norm = (p: string) => path.resolve(p).toLowerCase();
 const fwd = (p: string) => p.replace(/\\/g, '/');
 
 // ---------------------------------------------------------------------------- hooks (plan/merge)
@@ -176,7 +177,7 @@ export function planStatusLineUninstall(current: Settings, scriptPath: string, m
 }
 
 // ---------------------------------------------------------------------------- IO helpers
-function readSettings(file: string): { obj: Settings; existed: boolean; mtimeMs: number | null; text: string | null } {
+export function readSettings(file: string): { obj: Settings; existed: boolean; mtimeMs: number | null; text: string | null } {
   if (!fs.existsSync(file)) return { obj: {}, existed: false, mtimeMs: null, text: null };
   const text = fs.readFileSync(file, 'utf8');
   let obj: unknown;
@@ -189,9 +190,9 @@ function readSettings(file: string): { obj: Settings; existed: boolean; mtimeMs:
   return { obj: obj as Settings, existed: true, mtimeMs: fs.statSync(file).mtimeMs, text };
 }
 
-const jsonEq = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+export const jsonEq = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-function backup(paths: DataDirPaths, text: string | null): string | null {
+export function backup(paths: DataDirPaths, text: string | null): string | null {
   if (text === null) return null;
   fs.mkdirSync(paths.settingsBackups, { recursive: true });
   const stampStr = new Date().toISOString().replace(/[:.]/g, '-');
@@ -200,7 +201,7 @@ function backup(paths: DataDirPaths, text: string | null): string | null {
   return file;
 }
 
-function writeChecked(file: string, obj: Settings, expectedMtime: number | null) {
+export function writeChecked(file: string, obj: Settings, expectedMtime: number | null) {
   if (expectedMtime !== null && fs.existsSync(file) && fs.statSync(file).mtimeMs !== expectedMtime) {
     throw new Error('settings_changed_concurrently: settings.json changed while installing; nothing was written');
   }
@@ -208,7 +209,7 @@ function writeChecked(file: string, obj: Settings, expectedMtime: number | null)
   writeFileAtomic(file, JSON.stringify(obj, null, 2) + '\n');
 }
 
-function readManifest(paths: DataDirPaths): Manifest | null {
+export function readManifest(paths: DataDirPaths): Manifest | null {
   try {
     const raw = JSON.parse(fs.readFileSync(paths.installManifest, 'utf8')) as Record<string, unknown>;
     // Pass 1A manifests were flat: {installedAt, forwarderPath, nodePath, createdHooksKey, createdEventKeys}
@@ -229,15 +230,15 @@ function readManifest(paths: DataDirPaths): Manifest | null {
   }
 }
 
-function writeManifest(paths: DataDirPaths, m: Manifest) {
-  if (!m.hooks && !m.statusLine) {
+export function writeManifest(paths: DataDirPaths, m: Manifest) {
+  if (!m.hooks && !m.statusLine && !m.permissionHook) {
     fs.rmSync(paths.installManifest, { force: true });
     return;
   }
   writeFileAtomic(paths.installManifest, JSON.stringify(m, null, 2));
 }
 
-function copyScript(src: string, dest: string, missing: string) {
+export function copyScript(src: string, dest: string, missing: string) {
   if (!fs.existsSync(src)) throw new Error(`${missing}: run \`npm run build:forwarder\` first`);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   writeFileAtomic(dest, fs.readFileSync(src, 'utf8'));

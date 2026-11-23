@@ -45,6 +45,51 @@ exports[`snapshot of every sprite frame > drones 1`] = `
 }
 `;
 
+exports[`snapshot of every sprite frame > lounge furniture 1`] = `
+{
+  "arcade/0/back": "d41ff3637c30",
+  "arcade/0/front": "47dfe8780cf3",
+  "arcade/1/back": "fbc9e2c1243c",
+  "arcade/1/front": "47dfe8780cf3",
+  "arcade/2/back": "cdb2314232cb",
+  "arcade/2/front": "47dfe8780cf3",
+  "arcade/3/back": "37519da2165e",
+  "arcade/3/front": "47dfe8780cf3",
+  "coffee/0/back": "66a6666e6bc9",
+  "coffee/0/front": "55438a2ab255",
+  "coffee/1/back": "66a6666e6bc9",
+  "coffee/1/front": "b03fd4086e73",
+  "coffee/2/back": "9893050d8231",
+  "coffee/2/front": "959017a491e3",
+  "coffee/3/back": "9893050d8231",
+  "coffee/3/front": "55438a2ab255",
+  "couch/0/back": "bf687e6eade1",
+  "couch/0/front": "0a95b4ff5c26",
+  "couch/1/back": "bf687e6eade1",
+  "couch/1/front": "0a95b4ff5c26",
+  "couch/2/back": "bf687e6eade1",
+  "couch/2/front": "0a95b4ff5c26",
+  "couch/3/back": "bf687e6eade1",
+  "couch/3/front": "0a95b4ff5c26",
+  "pingpong/0/back": "d1478d2de05e",
+  "pingpong/0/front": "557412da5199",
+  "pingpong/1/back": "d1478d2de05e",
+  "pingpong/1/front": "3e35b5f3ac01",
+  "pingpong/2/back": "d1478d2de05e",
+  "pingpong/2/front": "c2d4f17e588e",
+  "pingpong/3/back": "d1478d2de05e",
+  "pingpong/3/front": "16e2a5696a41",
+  "tv/0/back": "23247b0d0053",
+  "tv/0/front": "47dfe8780cf3",
+  "tv/1/back": "7e1a35d59142",
+  "tv/1/front": "47dfe8780cf3",
+  "tv/2/back": "8fc32f66ab87",
+  "tv/2/front": "47dfe8780cf3",
+  "tv/3/back": "c85073d0ff29",
+  "tv/3/front": "47dfe8780cf3",
+}
+`;
+
 exports[`snapshot of every sprite frame > robots 1`] = `
 {
   "api_tester/analyzing/0": "f1f0deaf9bd9",

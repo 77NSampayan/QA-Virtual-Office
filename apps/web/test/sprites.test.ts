@@ -13,6 +13,7 @@ import { gridEquals, gridSignature, WHITE, type Grid } from '../src/sprites/grid
 import { drawGrid } from '../src/sprites/draw.ts';
 import { renderDrone, DRONE_H, DRONE_W } from '../src/sprites/drone.ts';
 import { FRAME_COUNT, LAYOUT, renderRobot, ROBOT_H, ROBOT_W } from '../src/sprites/robot.ts';
+import { NOOK_H, NOOK_KINDS, NOOK_W, nookForRobot, renderNookBack, renderNookFront } from '../src/sprites/nook.ts';
 import { renderStation, SCREEN, STATION_H, STATION_W } from '../src/sprites/station.ts';
 
 const palette = { primary: '#6f7fe8', accent: '#ffd54a' };
@@ -238,6 +239,47 @@ describe('robot types and workstations', () => {
   });
 });
 
+describe('lounge furniture', () => {
+  const nook = (kind: (typeof NOOK_KINDS)[number], frame: number) => ({ back: renderNookBack({ kind, palette, frame }), front: renderNookFront({ kind, palette, frame }) });
+
+  it('renders 32x16 layers deterministically for every kind and frame, and wraps the frame index', () => {
+    for (const kind of NOOK_KINDS) {
+      for (let f = 0; f < FRAME_COUNT; f++) {
+        const n = nook(kind, f);
+        for (const g of [n.back, n.front]) {
+          expect(g).toHaveLength(NOOK_H);
+          expect(g[0]).toHaveLength(NOOK_W);
+        }
+        expect(pixels(n.back).length + pixels(n.front).length).toBeGreaterThan(60); // some pieces draw mostly in front (ping-pong table)
+        expect(gridEquals(n.back, nook(kind, f).back)).toBe(true);
+        expect(gridEquals(n.back, nook(kind, f + FRAME_COUNT).back)).toBe(true);
+      }
+    }
+  });
+
+  it('the couch and the coffee counter have a foreground that covers the robot; the arcade does not', () => {
+    expect(pixels(nook('couch', 0).front).length).toBeGreaterThan(40);
+    expect(pixels(nook('coffee', 0).front).length).toBeGreaterThan(40);
+    expect(pixels(nook('pingpong', 0).front).length).toBeGreaterThan(40);
+    expect(pixels(nook('arcade', 0).front)).toHaveLength(0);
+    expect(pixels(nook('tv', 0).front)).toHaveLength(0);
+  });
+
+  it('the furniture animates (steam, arcade and TV screens, the ping-pong ball) but the couch stays still', () => {
+    expect(distinct(Array.from({ length: FRAME_COUNT }, (_, f) => nook('arcade', f).back))).toBeGreaterThan(1);
+    expect(distinct(Array.from({ length: FRAME_COUNT }, (_, f) => nook('tv', f).back))).toBeGreaterThan(1);
+    expect(distinct(Array.from({ length: FRAME_COUNT }, (_, f) => nook('pingpong', f).front))).toBeGreaterThan(1);
+    expect(distinct(Array.from({ length: FRAME_COUNT }, (_, f) => nook('coffee', f).front))).toBeGreaterThan(1);
+    expect(distinct(Array.from({ length: FRAME_COUNT }, (_, f) => nook('couch', f).back))).toBe(1);
+  });
+
+  it('a robot always rests at the same kind of furniture, and all kinds get used', () => {
+    expect(nookForRobot('rb_abc')).toBe(nookForRobot('rb_abc'));
+    const kinds = new Set(Array.from({ length: 60 }, (_, i) => nookForRobot(`robot-${i}`)));
+    expect(kinds.size).toBe(NOOK_KINDS.length);
+  });
+});
+
 describe('snapshot of every sprite frame', () => {
   const sig = (g: Grid) => createHash('sha1').update(gridSignature(g)).digest('hex').slice(0, 12);
   it('robots', () => {
@@ -248,6 +290,16 @@ describe('snapshot of every sprite frame', () => {
   it('workstations', () => {
     const out: Record<string, string> = {};
     for (const t of ROBOT_TYPES) for (const s of ALL_STATUSES) for (let f = 0; f < FRAME_COUNT; f++) out[`${t}/${s}/${f}`] = sig(station(s, f, t));
+    expect(out).toMatchSnapshot();
+  });
+  it('lounge furniture', () => {
+    const out: Record<string, string> = {};
+    for (const k of NOOK_KINDS) {
+      for (let f = 0; f < FRAME_COUNT; f++) {
+        out[`${k}/${f}/back`] = sig(renderNookBack({ kind: k, palette, frame: f }));
+        out[`${k}/${f}/front`] = sig(renderNookFront({ kind: k, palette, frame: f }));
+      }
+    }
     expect(out).toMatchSnapshot();
   });
   it('drones', () => {

@@ -37,6 +37,8 @@ beforeAll(async () => {
   projectId = r.json().project.id;
   browser = await chromium.launch({ executablePath: EDGE, headless: true });
   ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  // these tests cover the classic floor; the walkable office has its own tests in office.test.ts
+  await ctx.addInitScript(() => localStorage.setItem('qavo.view', 'classic'));
   page = await ctx.newPage();
   await page.goto(env.createLaunchUrl());
   await page.waitForSelector('[data-page="overview"]');
@@ -156,7 +158,12 @@ describe('C1 + C2: a robot follows real events through all 10 statuses', () => {
       if (step.status !== 'disconnected') {
         await page.waitForFunction(() => true);
         expect(await countColor(`${unit} canvas[data-kind="robot"]`, STATUS_COLOR[step.status]), `robot ${step.status}`).toBeGreaterThan(0);
-        expect(await countColor(`${unit} canvas[data-kind="station"]`, STATUS_COLOR[step.status]), `station ${step.status}`).toBeGreaterThan(0);
+        if (step.status === 'idle' || step.status === 'completed') {
+          // resting robots are in the lounge: their furniture (two layers) is drawn instead of a workstation
+          expect(await page.$$(`${unit} canvas[data-kind="nook"]`), `lounge ${step.status}`).toHaveLength(2);
+        } else {
+          expect(await countColor(`${unit} canvas[data-kind="station"]`, STATUS_COLOR[step.status]), `station ${step.status}`).toBeGreaterThan(0);
+        }
       } else {
         for (const other of ALL_STATUSES.filter((s) => s !== 'disconnected')) expect(await countColor(`${unit} canvas[data-kind="robot"]`, STATUS_COLOR[other]), `off vs ${other}`).toBe(0);
       }
@@ -226,10 +233,11 @@ describe('the office with several departments', () => {
     }
     await page.goto(env.origin + '/#/');
     await page.waitForSelector('[data-page="overview"]');
-    const deptOf = async (name: string) => page.$eval(`.station-unit[data-name="${name}"]`, (e) => e.closest('[data-dept]')!.getAttribute('data-dept'));
+    const deptOf = async (name: string) => page.$eval(`.station-unit[data-name="${name}"]`, (e) => (e.closest('[data-lounge]') ? 'lounge' : e.closest('[data-dept]')!.getAttribute('data-dept')));
     await page.waitForSelector('.station-unit[data-name="Bot 6"]');
     // roles in order: analyst, manual tester, automation engineer, API tester, regression tester, bug investigator, QA lead
-    const expected = ['manual', 'manual', 'automation', 'automation', 'automation', 'manual', 'lead'];
+    // (the QA lead's last event is Stop = completed, so it is resting in the lounge)
+    const expected = ['manual', 'manual', 'automation', 'automation', 'automation', 'manual', 'lounge'];
     for (let i = 0; i < expected.length; i++) expect(await deptOf(`Bot ${i}`), `Bot ${i}`).toBe(expected[i]);
     // all seven robot types are drawn (distinct canvases)
     const types = await page.$$eval('.station-unit canvas[data-kind="robot"]', (els) => els.map((e) => e.getAttribute('data-type')));

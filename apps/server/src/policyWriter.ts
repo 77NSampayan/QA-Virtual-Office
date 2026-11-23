@@ -33,6 +33,7 @@ export function buildPolicy(db: DB, port: number, version: number): CapturePolic
     projects: projectRoots(db),
     excludes: getSetting<PathForms[]>(db, 'excludes', []),
     collector: { port },
+    permissionBridge: { enabled: getSetting<boolean>(db, 'permission_bridge', false) === true, waitSeconds: 110 },
   });
 }
 

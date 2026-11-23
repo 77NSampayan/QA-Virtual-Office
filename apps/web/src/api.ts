@@ -61,6 +61,7 @@ export interface Session {
   backgroundTasksRunning: number;
   pendingPermissionTool: string | null;
   drones: DroneState[];
+  activity: { tool: string; fileCategory: string | null; commandCategory: string | null; at: number } | null;
   usage: {
     modelName: string | null;
     costUsd: number | null;
@@ -425,6 +426,24 @@ export interface ProjectQaSummary {
   defects: { total: number; open: number; openBySeverity: Record<string, number> };
   tasks: { total: number; open: number; blocked: number };
 }
+export interface PermissionRequestItem {
+  id: string;
+  sessionId: string;
+  robotName: string | null;
+  projectAlias: string | null;
+  toolName: string;
+  summary: string | null;
+  createdAt: number;
+  expiresAt: number;
+  canAllow: boolean;
+}
+export interface PermissionBridgeState {
+  enabled: boolean;
+  hook: { state: 'installed' | 'not_installed'; scriptPresent: boolean; upToDate: boolean };
+  toolInputsCapture: boolean;
+  pending: number;
+  recent: Array<{ tool: string; status: string; reason: string; project: string | null; at: number }>;
+}
 export interface AgentSettings {
   enabled: boolean;
   mcpInstalled: boolean;
@@ -494,6 +513,12 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 export const api = {
   demo: () => call<{ demo: boolean; banner: string }>('GET', '/api/demo'),
   projectQaSummary: (pid: string) => call<ProjectQaSummary>('GET', `/api/projects/${pid}/qa-summary`),
+  permissionsPending: () => call<PermissionRequestItem[]>('GET', '/api/permissions/pending'),
+  decidePermission: (id: string, decision: 'allow' | 'deny') => call<{ status: 'allowed' | 'denied' }>('POST', `/api/permissions/${id}/decide`, { decision }),
+  permissionBridge: () => call<PermissionBridgeState>('GET', '/api/settings/permission-bridge'),
+  setPermissionBridge: (enabled: boolean, confirm = false) => call<{ enabled: boolean }>('PUT', '/api/settings/permission-bridge', { enabled, confirm }),
+  permissionPlan: (action: 'install' | 'uninstall') => call<{ kind: 'permission'; action: string; noChange: boolean; willCreateBackup: boolean; eventsAdded: string[]; eventsRemoved: string[]; handler: Record<string, unknown> | null; warning: string | null }>('GET', `/api/integration/permission-hook/plan?action=${action}`),
+  permissionHook: (action: 'install' | 'uninstall', acknowledge = false) => call<{ changed: boolean; verified: boolean }>('POST', `/api/integration/permission-hook/${action}`, { acknowledge }),
   agentSettings: () => call<AgentSettings>('GET', '/api/settings/agent'),
   setAgentAccess: (enabled: boolean, confirm = false) => call<{ enabled: boolean }>('PUT', '/api/settings/agent', { enabled, confirm }),
   rotateAgentToken: () => call<{ ok: true }>('POST', '/api/settings/agent/rotate-token'),

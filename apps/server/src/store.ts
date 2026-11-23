@@ -519,8 +519,17 @@ export interface SessionDTO {
   backgroundTasksRunning: number;
   pendingPermissionTool: string | null;
   drones: DroneState[];
+  /** The latest tool the main agent used (metadata only: tool name and the categories the forwarder derived); null if none yet. */
+  activity: CurrentToolDTO | null;
   /** Exactly what Claude Code's status line reported (if the status line is installed); null otherwise. */
   usage: UsageDTO | null;
+}
+
+export interface CurrentToolDTO {
+  tool: string;
+  fileCategory: string | null;
+  commandCategory: string | null;
+  at: number;
 }
 
 export interface UsageDTO {
@@ -543,6 +552,14 @@ function usageFor(db: DB, sessionId: string): UsageDTO | null {
     sevenDayPct: (r.seven_day_pct as number) ?? null,
     updatedAt: r.updated_at as string,
   };
+}
+
+function activityFor(db: DB, sessionId: string): CurrentToolDTO | null {
+  const r = db
+    .prepare('SELECT tool_name, file_category, command_category, received_at FROM agent_events WHERE session_id = ? AND tool_name IS NOT NULL AND agent_id IS NULL ORDER BY received_at DESC, rowid DESC LIMIT 1')
+    .get(sessionId) as { tool_name: string; file_category: string | null; command_category: string | null; received_at: string } | undefined;
+  if (!r) return null;
+  return { tool: r.tool_name, fileCategory: r.file_category, commandCategory: r.command_category, at: Date.parse(r.received_at) };
 }
 
 export function sessionDto(db: DB, sessionId: string): SessionDTO | null {
@@ -572,6 +589,7 @@ export function sessionDto(db: DB, sessionId: string): SessionDTO | null {
     backgroundTasksRunning: state.flags.backgroundTasksRunning,
     pendingPermissionTool: state.flags.pendingPermissionTool,
     drones: Object.values(state.drones),
+    activity: activityFor(db, sessionId),
     usage: usageFor(db, sessionId),
   };
 }

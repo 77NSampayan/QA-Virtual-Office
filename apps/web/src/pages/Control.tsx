@@ -1,4 +1,5 @@
 import { useLive } from '../live.tsx';
+import { PermissionPanel } from '../PermissionPanel.tsx';
 import { ago, agoIso, isActive, needsAttention, NoData, StatusPill, useNow } from '../ui.tsx';
 import { ActivityFeed } from './Rooms.tsx';
 
@@ -14,6 +15,7 @@ export function Control() {
     <div className="page" data-page="control">
       <h2>QA Control Room</h2>
 
+      <PermissionPanel />
       <section className="card" data-attention>
         <h3>Needs your attention ({attention.length})</h3>
         {attention.length === 0 ? (

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { departmentOf, STATUS_COLOR, STATUS_LABEL, ALL_STATUSES } from '@qavo/shared';
 import { api, type QaExecutionSummary, type QaSummary } from '../api.ts';
-import { Floor } from '../Floor.tsx';
+import { OfficeSwitcher } from '../office/OfficeSwitcher.tsx';
+import { PermissionPanel } from '../PermissionPanel.tsx';
 import { useLive } from '../live.tsx';
 import { isActive, Kpi, needsAttention, useNow } from '../ui.tsx';
 
@@ -85,7 +86,8 @@ export function Overview() {
         )}
       </section>
 
-      <Floor robots={robots} sessions={sessions} now={now} />
+      <PermissionPanel />
+      <OfficeSwitcher robots={robots} sessions={sessions} now={now} />
     </div>
   );
 }

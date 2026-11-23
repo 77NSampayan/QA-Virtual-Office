@@ -64,3 +64,15 @@
 - **Audit:** one append-only row per call (tool, project, outcome, code), never content.
 - **Same-user limitation:** any process running as the same Windows user can read `agent-token` (same as the hook token). It stops other users, browsers and remote hosts. Turn access off, or replace the token, if you suspect misuse.
 - **Launch Claude Code here:** confirmed, fixed `cmd.exe /c start … cmd /k claude` in the project folder; folder names with `% ^ & | < > " !` are refused; not available in demo mode; not reachable with the agent token.
+
+## Permission bridge (V4b, implemented, optional, off by default)
+
+- **What it is:** one SYNCHRONOUS command hook on `PermissionRequest` only (every other hook we install is asynchronous and can never decide anything). It lets a person allow or deny a permission request from the office.
+- **It never decides by itself.** It prints a decision only after the server reports that the signed-in person decided. In every other case it prints nothing and exits 0, which leaves Claude Code's normal permission prompt untouched (documented: staying silent does not approve). It never uses exit code 2 (not honoured for this event) and never exits non-zero.
+- **Gates, all required:** the hook is installed (by you, with a dry-run plan and acknowledgement); the bridge is turned on (you confirm); the session's folder is a registered, non-excluded project (an unregistered folder is never contacted, even in "All sessions" scope); the hook token is present.
+- **Who can decide:** only the signed-in UI (session cookie + CSRF header). The hook token can create and wait for a request but not decide; the agent token cannot reach any of these routes; a decision is final and single-use; the database refuses an allowed/denied row not decided by a human.
+- **Allow needs the details.** Allow is refused (422) when the request carries no summary (tool-input capture off). The summary is built locally by the hook (command on one line; for file tools a verb and a project-relative or home-masked path; for other tools field names only), redacted again by the server, stored only while the request is open, and erased when answered or expired. Only tool, project and result are kept, for 7 days.
+- **Bounded waiting:** requests expire after 110 s; the script stops after at most 115 s (Claude Code's limit is configured to 130 s); a request also expires when its session carries on (the same tool finished, the turn or session ended): subagent events never expire a request.
+- **Limits:** at most 20 requests wait at once; request bodies are capped at 8 KB; no permanent allow rules are ever written (`updatedPermissions` is never sent).
+- **Same-user limitation:** as with every token in this app, any process running as your Windows user can read the hook token and could create requests (not answer them). Answering needs your signed-in session.
+- **Not verified against a live Claude Code session** in this environment; see `docs/validation/v4b-permissions.md` for what to test.

@@ -36,11 +36,13 @@ describe('demo mode UI', () => {
     expect(await page.textContent('[data-demo-pill]')).toContain('DEMO DATA');
     expect(await page.textContent('[data-demo-banner]')).toContain('Nothing here comes from Claude Code');
     expect(await page.title()).toContain('DEMO');
-    await page.waitForSelector('.station-unit[data-name="Nova"]');
-    expect(await page.locator('.station-unit').count()).toBeGreaterThanOrEqual(9);
+    // the walkable office (default view): every demo robot is placed according to its real status
+    await page.waitForSelector('[data-office-robots] li[data-name="Nova"]', { state: 'attached' });
+    expect(await page.locator('[data-office-robots] li').count()).toBeGreaterThanOrEqual(11);
     for (const status of ['awaiting_permission', 'failed', 'executing_tests', 'debugging', 'completed', 'disconnected']) {
-      expect(await page.locator(`.station-unit[data-status="${status}"]`).count(), status).toBeGreaterThan(0);
+      expect(await page.locator(`[data-office-robots] li[data-status="${status}"]`).count(), status).toBeGreaterThan(0);
     }
+    expect(await page.locator('[data-office-robots] li[data-zone="lounge"]').count()).toBeGreaterThanOrEqual(3); // idle and completed robots rest in the lounge
     await page.waitForFunction(() => document.querySelector('[data-kpi="passed"]')?.getAttribute('data-nodata') === 'false');
     expect((await page.textContent('[data-kpi="passed"] .kpi-value'))?.trim()).toBe('2');
     expect((await page.textContent('[data-kpi="defects"] .kpi-value'))?.trim()).toBe('2');

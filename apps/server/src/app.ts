@@ -15,6 +15,8 @@ import type { InstallContext } from './installer.ts';
 import { loggerOptions } from './logger.ts';
 import { writePolicy } from './policyWriter.ts';
 import { DEMO_BANNER } from './demo.ts';
+import { registerPermissionRoutes } from './permissionRoutes.ts';
+import { expireOnEvent } from './permissions.ts';
 import { registerQaExecRoutes } from './qaExecRoutes.ts';
 import { registerQaRoutes } from './qaRoutes.ts';
 import { registerQaWorkRoutes } from './qaWorkRoutes.ts';
@@ -44,7 +46,7 @@ import {
   type ProjectPatch,
 } from './store.ts';
 
-export const VERSION = '0.7.0-pass2d';
+export const VERSION = '0.8.0-v4b';
 const WEB_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
 
 export interface AppOptions {
@@ -162,6 +164,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   // ------------------------------------------------------------------ collector (token routes)
   app.post('/api/hooks', { bodyLimit: 64 * 1024 }, async (req, reply) => {
     ingest(db, req.body, broadcast);
+    if (expireOnEvent(db, req.body) > 0) broadcast({ type: 'permission.changed' });
     return reply.code(204).send(); // always empty body: cannot be read as a hook decision
   });
   app.post('/api/statusline', { bodyLimit: 16 * 1024 }, async (req, reply) => {
@@ -175,7 +178,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   if (opts.demo) {
     // Defense in depth: even with a settings path inside the demo folder, never let the demo UI install or remove hooks.
     app.addHook('onRequest', async (req, reply) => {
-      if (req.method !== 'GET' && /^\/api\/integration\/(hooks|statusline)\//.test(req.url)) {
+      if (req.method !== 'GET' && /^\/api\/integration\/(hooks|statusline|permission-hook)\//.test(req.url)) {
         return reply.code(403).send({ error: 'demo_mode', message: 'Demo mode never changes your Claude Code settings.' });
       }
       return undefined;
@@ -259,6 +262,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
     runtime,
   });
 
+  registerPermissionRoutes(app, { db, broadcast, regeneratePolicy, installCtx: () => ({ paths, settingsPath: opts.claudeSettingsPath, ...opts.installOverrides }) });
   registerQaRoutes(app, { db, broadcast });
   registerQaExecRoutes(app, { db, broadcast, evidenceDir: paths.evidence });
   registerQaWorkRoutes(app, { db, broadcast });

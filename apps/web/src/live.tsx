@@ -19,6 +19,8 @@ export interface Live {
   eventVersion: number;
   /** Increments whenever any Manual QA record changes (here or in another window). */
   qaVersion: number;
+  /** Bumps whenever a permission request arrives, is answered or expires. */
+  permissionVersion: number;
   refresh: () => Promise<void>;
   refreshActivity: () => void;
   /** The most recent session of a robot (its current state), if any. */
@@ -45,6 +47,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const [wsState, setWsState] = useState<WsState>('connecting');
   const [eventVersion, setEventVersion] = useState(0);
   const [qaVersion, setQaVersion] = useState(0);
+  const [permissionVersion, setPermissionVersion] = useState(0);
   const activityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const refreshActivity = useCallback(() => {
@@ -88,6 +91,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
             if (s?.robot) setRobots((prev) => (prev.some((r) => r.id === s.robot!.id) ? prev : [...prev, s.robot!]));
             break;
           }
+          case 'permission.changed':
+            setPermissionVersion((v) => v + 1);
+            break;
           case 'qa.changed':
             setQaVersion((v) => v + 1);
             break;
@@ -134,8 +140,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const sessionOf = useCallback((robotId: string) => sessions.find((s) => s.robot?.id === robotId), [sessions]);
 
   const value = useMemo<Live>(
-    () => ({ projects, sessions, robots, notifications, unread, integration, activity, wsState, eventVersion, qaVersion, refresh, refreshActivity, sessionOf }),
-    [projects, sessions, robots, notifications, unread, integration, activity, wsState, eventVersion, qaVersion, refresh, refreshActivity, sessionOf],
+    () => ({ projects, sessions, robots, notifications, unread, integration, activity, wsState, eventVersion, qaVersion, permissionVersion, refresh, refreshActivity, sessionOf }),
+    [projects, sessions, robots, notifications, unread, integration, activity, wsState, eventVersion, qaVersion, permissionVersion, refresh, refreshActivity, sessionOf],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

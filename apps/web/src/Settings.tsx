@@ -1,6 +1,8 @@
 /** Pass 1B Settings: integration health, hook/status-line install, privacy, scope, retention, backups. */
 import { useCallback, useEffect, useState } from 'react';
 import { AgentAccess } from './AgentAccess.tsx';
+import { OfficeAppearance } from './OfficeAppearance.tsx';
+import { PermissionBridge } from './PermissionBridge.tsx';
 import { api, ApiError, type BackupInfo, type Capture, type IntegrationStatus, type PlanSummary, type SettingsState } from './api.ts';
 
 const HOOK_EVENTS = [
@@ -437,7 +439,9 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
   return (
     <div className="settings">
       <DesktopCard />
+      <OfficeAppearance />
       <Integration status={status} refresh={refresh} />
+      <PermissionBridge />
       <AgentAccess />
       <Privacy settings={settings} refresh={refresh} />
       <Excludes refresh={refresh} />

@@ -27,4 +27,4 @@
 - **No export or backup of the new data beyond the database backup.** Redacted JSON/CSV export still excludes QA records.
 - Task board columns are not drag-and-drop; tasks move with the buttons in the task detail (deliberate: keyboard and screen-reader friendly, and every move can carry a note).
 - Per-user accounts do not exist: assignee is a free-text name or role.
-- **The kill-9 database test (B6) fails intermittently when the whole suite runs** (Windows refuses to delete its temp folder, EPERM) and passes alone; it failed in the last full run again. Not a product defect, but worth fixing in the test harness.
+- **The kill-9 database test (B6) fails intermittently when the whole suite runs** (Windows refuses to delete its temp folder, EPERM) and passes alone; it failed in the last full run again. **Correction (V3):** this was NOT only a test problem: the recovery code treated a temporary file lock as corruption and could have replaced a healthy database with an older backup. It is fixed (see `docs/validation/v3-office.md`) and the test is now stable.

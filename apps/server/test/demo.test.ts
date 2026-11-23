@@ -37,7 +37,8 @@ describe('demo data', () => {
     for (const s of ['analyzing', 'writing_tests', 'executing_tests', 'debugging', 'awaiting_permission', 'awaiting_input', 'completed', 'failed', 'disconnected']) {
       expect(statuses.has(s), `status ${s}`).toBe(true);
     }
-    expect((db.prepare('SELECT COUNT(*) AS c FROM sessions').get() as { c: number }).c).toBe(9);
+    expect((db.prepare('SELECT COUNT(*) AS c FROM sessions').get() as { c: number }).c).toBe(11);
+    expect(statuses.has('idle')).toBe(true);
     expect((db.prepare('SELECT COUNT(*) AS c FROM subagents').get() as { c: number }).c).toBeGreaterThan(0);
   });
 

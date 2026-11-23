@@ -3,6 +3,7 @@ import { STATUS_ANIMATION, STATUS_LABEL, type RobotPalette, type RobotStatus, ty
 import { drawGrid } from './draw.ts';
 import { DRONE_H, DRONE_W, renderDrone } from './drone.ts';
 import type { Grid } from './grid.ts';
+import { NOOK_H, NOOK_LABEL, NOOK_W, renderNookBack, renderNookFront, type NookKind } from './nook.ts';
 import { renderRobot, ROBOT_H, ROBOT_W } from './robot.ts';
 import { renderStation, STATION_H, STATION_W } from './station.ts';
 import { useFrame } from './ticker.ts';
@@ -82,6 +83,33 @@ export function DroneSprite({ status, scale = 3, className }: { status: RobotSta
       className={`drone ${className ?? ''}`}
       label="Subagent drone"
       data={{ kind: 'drone', status, frame: f }}
+    />
+  );
+}
+
+interface NookProps {
+  kind: NookKind;
+  palette: RobotPalette;
+  scale?: number;
+  /** Which layer: BACK sits behind the robot, FRONT over its lower body. */
+  layer: 'back' | 'front';
+  frame?: number;
+}
+
+/** A lounge furniture layer (couch, coffee corner, arcade). The animation frame moves the furniture only. */
+export function NookSprite({ kind, palette, scale = 4, layer, frame }: NookProps) {
+  const tick = useFrame();
+  const f = frame ?? tick;
+  const input = { kind, palette, frame: f };
+  return (
+    <PixelCanvas
+      grid={layer === 'back' ? renderNookBack(input) : renderNookFront(input)}
+      w={NOOK_W}
+      h={NOOK_H}
+      scale={scale}
+      className={`nook nook-${layer}`}
+      label={`${NOOK_LABEL[kind]} (lounge)`}
+      data={{ kind: 'nook', nook: kind, layer, frame: f }}
     />
   );
 }

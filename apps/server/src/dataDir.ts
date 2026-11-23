@@ -26,6 +26,7 @@ export interface DataDirPaths {
   folderKeySecret: string;
   hooksDir: string;
   forwarder: string;
+  permissionHook: string;
   statuslineScript: string;
   statuslineWrap: string;
   spool: string;
@@ -49,6 +50,7 @@ export function dataDirPaths(root: string): DataDirPaths {
     folderKeySecret: path.join(root, 'folder-key.secret'),
     hooksDir: path.join(root, 'hooks'),
     forwarder: path.join(root, 'hooks', 'forward.mjs'),
+    permissionHook: path.join(root, 'hooks', 'permission.mjs'),
     statuslineScript: path.join(root, 'hooks', 'statusline.mjs'),
     statuslineWrap: path.join(root, 'statusline-wrap.json'),
     spool: path.join(root, 'spool.jsonl'),

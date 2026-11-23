@@ -8,3 +8,5 @@ export * from './robots.ts';
 export * from './qa.ts';
 export * from './execution.ts';
 export * from './defects.ts';
+export * from './bubbles.ts';
+export * from './permissionSummary.ts';

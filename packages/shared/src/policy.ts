@@ -23,6 +23,8 @@ export const CapturePolicySchema = z.object({
   projects: z.array(FormsSchema.extend({ id: z.string().min(1).max(128) })),
   excludes: z.array(FormsSchema),
   collector: z.object({ port: z.number().int().min(1).max(65535) }),
+  /** Approve/deny permission requests from the office (V4b). OFF unless a person turned it on; absent in older files. */
+  permissionBridge: z.object({ enabled: z.boolean(), waitSeconds: z.number().int().min(10).max(300) }).default({ enabled: false, waitSeconds: 110 }),
 });
 
 export type CapturePolicy = z.infer<typeof CapturePolicySchema>;
@@ -37,6 +39,7 @@ export const FAIL_CLOSED_POLICY: CapturePolicy = Object.freeze({
   projects: [],
   excludes: [],
   collector: { port: 47821 },
+  permissionBridge: { enabled: false, waitSeconds: 110 },
 }) as CapturePolicy;
 
 export function parsePolicy(text: string | null | undefined): {
