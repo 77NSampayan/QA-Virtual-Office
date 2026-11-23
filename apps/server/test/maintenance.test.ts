@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { bootstrapDataDir } from '../src/dataDir.ts';
+import { openDb } from '../src/db/index.ts';
 import { csvCell } from '../src/exporter.ts';
 import {
   BACKUP_KEEP,
@@ -139,6 +140,81 @@ describe('integrity and recovery', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qavo-rec-'));
     return { root, ...bootstrapDataDir(path.join(root, 'data'), { applyAcl: false }) };
   }
+
+  describe('a locked or unreadable database is NOT treated as corrupt (data-safety)', () => {
+    const errWith = (code: string, message: string) => Object.assign(new Error(message), { code });
+    const seed = () => {
+      const { root, paths } = freshDir();
+      const db = openDbWithRecovery(paths).db;
+      db.prepare("INSERT INTO settings (key, value) VALUES ('marker', '\"keep-me\"')").run();
+      db.close();
+      return { root, paths };
+    };
+    const noCorruptCopies = (paths: { root: string }) => fs.readdirSync(paths.root).filter((f) => f.startsWith('data.db.corrupt-'));
+
+    it('a permission or busy error is retried, then reported; the database and its backups are left exactly as they were', () => {
+      const { root, paths } = seed();
+      const before = fs.readFileSync(paths.db);
+      let attempts = 0;
+      const sleeps: number[] = [];
+      for (const code of ['EPERM', 'EBUSY', 'SQLITE_BUSY', 'SQLITE_CANTOPEN', 'SQLITE_IOERR']) {
+        attempts = 0;
+        expect(() =>
+          openDbWithRecovery(paths, {
+            open: () => {
+              attempts++;
+              throw errWith(code, 'EPERM, Permission denied');
+            },
+            sleep: (ms) => sleeps.push(ms),
+            retries: 3,
+          }),
+        ).toThrow(/Permission denied/);
+        expect(attempts, code).toBe(4); // first try + 3 retries
+      }
+      expect(sleeps.length).toBe(15);
+      expect(noCorruptCopies(paths)).toEqual([]);
+      expect(fs.readFileSync(paths.db).equals(before)).toBe(true); // not moved, not replaced, not touched
+      fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it('a lock that clears is simply waited out: the same database opens, with no recovery', () => {
+      const { root, paths } = seed();
+      let n = 0;
+      const r = openDbWithRecovery(paths, {
+        open: (p) => {
+          if (n++ < 2) throw errWith('EPERM', 'EPERM, Permission denied');
+          return openDb(p);
+        },
+        sleep: () => undefined,
+      });
+      expect(r.recovery).toBeNull();
+      expect(r.db.prepare("SELECT value FROM settings WHERE key = 'marker'").get()).toEqual({ value: '"keep-me"' });
+      expect(noCorruptCopies(paths)).toEqual([]);
+      r.db.close();
+      fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it('real corruption is still recovered (by code or by message), and only that', () => {
+      for (const err of [errWith('SQLITE_CORRUPT', 'database disk image is malformed'), errWith('SQLITE_NOTADB', 'file is not a database')]) {
+        const { root, paths } = seed();
+        let first = true;
+        const r = openDbWithRecovery(paths, {
+          open: (p) => {
+            if (first) {
+              first = false;
+              throw err;
+            }
+            return openDb(p);
+          },
+          sleep: () => undefined,
+        });
+        expect(r.recovery).not.toBeNull();
+        expect(noCorruptCopies(paths)).toHaveLength(1);
+        r.db.close();
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+  });
 
   it('a corrupt database is moved aside and the newest valid backup is restored (B6 recovery)', async () => {
     const { root, paths } = freshDir();

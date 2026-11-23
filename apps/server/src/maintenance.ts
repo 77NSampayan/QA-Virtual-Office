@@ -200,19 +200,49 @@ function moveAside(file: string, suffix: string) {
   }
 }
 
-/** Opens the database; on corruption moves it aside and restores the newest valid backup. */
-export function openDbWithRecovery(paths: DataDirPaths): { db: DB; recovery: RecoveryNotice | null } {
+const CORRUPT_CODES = new Set(['SQLITE_CORRUPT', 'SQLITE_NOTADB', 'SQLITE_CORRUPT_VTAB', 'SQLITE_CORRUPT_INDEX', 'SQLITE_CORRUPT_SEQUENCE']);
+/** True only for genuine corruption (not a lock, a permission problem or a missing file). */
+export function isCorruptionError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  return CORRUPT_CODES.has(e.code ?? '') || /malformed|not a database|disk image/i.test(e.message ?? '');
+}
+const sleepMs = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+export interface RecoveryHooks {
+  open?: typeof openDb;
+  sleep?: (ms: number) => void;
+  /** How many times to retry a temporary failure (lock, permission) before giving up. Default 8. */
+  retries?: number;
+}
+
+/**
+ * Opens the database. ONLY real corruption (a bad header, a failed quick check) moves it aside and restores the
+ * newest valid backup. A temporary problem (the file is locked right after a crash, an antivirus scan, a busy
+ * handle) is retried and then reported as an error: a healthy database is never moved aside because of a lock.
+ */
+export function openDbWithRecovery(paths: DataDirPaths, hooks: RecoveryHooks = {}): { db: DB; recovery: RecoveryNotice | null } {
+  const open = hooks.open ?? openDb;
+  const sleep = hooks.sleep ?? sleepMs;
+  const retries = hooks.retries ?? 8;
   let reason: string | null = null;
   if (fs.existsSync(paths.db)) {
-    try {
-      const db = openDb(paths.db);
-      const rows = db.pragma('quick_check') as Array<{ quick_check: string }>;
-      const detail = rows.map((r) => r.quick_check).join('; ');
-      if (detail === 'ok') return { db, recovery: null };
-      db.close();
-      reason = `quick_check failed: ${detail.slice(0, 200)}`;
-    } catch (err) {
-      reason = `open failed: ${(err as Error).message.slice(0, 200)}`;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const db = open(paths.db);
+        const rows = db.pragma('quick_check') as Array<{ quick_check: string }>;
+        const detail = rows.map((r) => r.quick_check).join('; ');
+        if (detail === 'ok') return { db, recovery: null };
+        db.close();
+        reason = `quick_check failed: ${detail.slice(0, 200)}`;
+        break;
+      } catch (err) {
+        if (isCorruptionError(err)) {
+          reason = `open failed: ${(err as Error).message.slice(0, 200)}`;
+          break;
+        }
+        if (attempt >= retries) throw err; // locked or unreadable for another reason: leave every file exactly as it is
+        sleep(300);
+      }
     }
     moveAside(paths.db, `corrupt-${Date.now()}`);
   }
@@ -226,7 +256,7 @@ export function openDbWithRecovery(paths: DataDirPaths): { db: DB; recovery: Rec
       break;
     }
   }
-  const db = openDb(paths.db);
+  const db = open(paths.db);
   const recovery = reason ? { at: new Date().toISOString(), reason, restoredFrom } : null;
   if (recovery) setSetting(db, 'recovery_notice', recovery);
   return { db, recovery };
