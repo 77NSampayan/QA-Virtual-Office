@@ -202,3 +202,30 @@ describe('forwarder process', () => {
     for (const c of Object.values(CANARY)) expect(keysLog).not.toContain(c);
   });
 });
+
+describe('forwarder: playbook run id (P4)', () => {
+  it('adds the run id from the environment, and nothing else about the run', async () => {
+    const d = newDataDir();
+    writePolicy(d, port);
+    const r = await run(d, payload(projectDir), { QAVO_RUN_ID: 'run_0123456789abcdef' });
+    expect(r.code).toBe(0);
+    expect(received).toHaveLength(1);
+    const ev = JSON.parse(received[0]!.body);
+    expect(ev.runId).toBe('run_0123456789abcdef');
+    expect(received[0]!.body).not.toMatch(/token|QAVO_RUN_TOKEN/i);
+  });
+
+  it('ignores a malformed run id and sends no run id when there is none', async () => {
+    const d = newDataDir();
+    writePolicy(d, port);
+    for (const bad of ['nope', 'run_', 'run_x', 'run_with space', 'run_' + 'a'.repeat(80), '<script>']) {
+      received = [];
+      await run(d, payload(projectDir), { QAVO_RUN_ID: bad });
+      expect(received).toHaveLength(1);
+      expect(JSON.parse(received[0]!.body).runId, bad).toBeUndefined();
+    }
+    received = [];
+    await run(d, payload(projectDir));
+    expect(JSON.parse(received[0]!.body).runId).toBeUndefined();
+  });
+});

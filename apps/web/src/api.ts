@@ -182,10 +182,61 @@ export interface QaRequirementDetail extends QaRequirement {
   flags: QaFlag[];
   testCases: Array<{ id: string; code: string; title: string; status: string }>;
 }
+export interface AgentRun {
+  id: string;
+  project: string | null;
+  playbookId: string;
+  agentName: string;
+  role: string;
+  startedAt: string;
+  expiresAt: string;
+  status: 'active' | 'expired' | 'revoked';
+}
+export interface Playbook {
+  id: string;
+  role: string;
+  kind: 'analyst' | 'writer' | 'reviewer' | 'investigator' | 'lead';
+  area: 'requirements' | 'manual' | 'automation' | 'api' | 'defects' | 'coordination';
+  available: boolean;
+  purpose: string;
+  agentName: string;
+  defaultName: string;
+  houseRules: string;
+  tools: string[];
+  plannedTools: string[];
+  instructions: string[];
+  checklist: string[];
+  reviewedBy: string | null;
+}
+export interface QaTestCaseImportResult {
+  dryRun: boolean;
+  format: string;
+  total: number;
+  wouldCreate: Array<{ row: number; externalId: string; title: string }>;
+  created: number;
+  skippedExisting: string[];
+  duplicatesInText: string[];
+  rowErrors: Array<{ row: number; reason: string }>;
+  warnings: Array<{ row: number; text: string }>;
+  columns: { recognised: string[]; ignored: string[]; unknown: string[] };
+  rowsWithoutId: number;
+  truncated: boolean;
+}
+export interface QaReview {
+  verdict: 'recommend_approve' | 'changes_requested';
+  by: string;
+  at: string;
+  notes: string;
+  /** False when the test case was edited after this review. */
+  current: boolean;
+}
 export interface QaTestCase {
   id: string;
   projectId: string;
   code: string;
+  externalId: string;
+  draftedBy: string;
+  review: QaReview | null;
   scenario: string;
   title: string;
   description: string;
@@ -222,6 +273,8 @@ export interface QaHistory {
 export interface QaTestCaseDetail extends QaTestCase {
   requirements: Array<{ id: string; ref: string; title: string }>;
   history: QaHistory[];
+  /** The writer agent's answers to the latest review. */
+  replies: Array<{ by: string; at: string; note: string }>;
 }
 export interface QaRatio {
   numerator: number;
@@ -448,7 +501,7 @@ export interface AgentSettings {
   enabled: boolean;
   mcpInstalled: boolean;
   tools: string[];
-  activity: Array<{ at: string; tool: string; outcome: string; code: string; project: string | null }>;
+  activity: Array<{ at: string; tool: string; outcome: string; code: string; project: string | null; agent: string | null }>;
   lastRotatedAt: string | null;
 }
 export interface QaSummary {
@@ -524,6 +577,9 @@ export const api = {
   rotateAgentToken: () => call<{ ok: true }>('POST', '/api/settings/agent/rotate-token'),
   agentSetup: () => call<{ command: string; removeCommand: string }>('GET', '/api/settings/agent/setup'),
   launchClaude: (projectId: string) => call<{ launched: true }>('POST', `/api/projects/${projectId}/launch-claude`, { confirm: true }),
+  launchPlaybook: (projectId: string, playbookId: string) => call<{ launched: true; run: AgentRun }>('POST', `/api/projects/${projectId}/launch-claude`, { confirm: true, playbookId }),
+  agentRuns: () => call<AgentRun[]>('GET', '/api/runs'),
+  revokeRun: (id: string) => call<AgentRun>('POST', `/api/runs/${id}/revoke`),
   projects: () => call<Project[]>('GET', '/api/projects'),
   createProject: (p: { alias: string; path: string; type: string }) =>
     call<{ project: Project; warnings: string[]; relinkedSessions: number }>('POST', '/api/projects', p),
@@ -576,6 +632,11 @@ export const api = {
   testCases: (pid: string, f: Record<string, string> = {}) =>
     call<QaTestCase[]>('GET', `/api/projects/${pid}/test-cases?${new URLSearchParams(Object.entries(f).filter(([, v]) => v !== '')).toString()}`),
   testCase: (id: string) => call<QaTestCaseDetail>('GET', `/api/test-cases/${id}`),
+  playbooks: () => call<Playbook[]>('GET', '/api/playbooks'),
+  updatePlaybook: (id: string, b: { agentName?: string; houseRules?: string }) => call<Playbook>('PATCH', `/api/playbooks/${id}`, b),
+  resetPlaybook: (id: string) => call<Playbook>('POST', `/api/playbooks/${id}/reset`),
+  handToAgent: (id: string, playbookId: string) => call<{ code: string; draftedBy: string }>('POST', `/api/test-cases/${id}/hand-to-agent`, { playbookId }),
+  importTestCases: (pid: string, b: { text: string; dryRun?: boolean }) => call<QaTestCaseImportResult>('POST', `/api/projects/${pid}/test-cases/import`, b),
   createTestCase: (pid: string, b: QaTestCaseInput) => call<QaTestCase>('POST', `/api/projects/${pid}/test-cases`, b),
   updateTestCase: (id: string, b: Partial<QaTestCaseInput>) => call<QaTestCase>('PATCH', `/api/test-cases/${id}`, b),
   transitionTestCase: (id: string, to: string, note = '') => call<QaTestCase>('POST', `/api/test-cases/${id}/transition`, { to, note }),

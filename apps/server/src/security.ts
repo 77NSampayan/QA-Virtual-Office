@@ -10,6 +10,14 @@
  */
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { RunIdentity } from './runs.ts';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** Set on /api/agent/* calls made with a playbook run credential (absent for the shared agent token). */
+    agentRun?: RunIdentity;
+  }
+}
 
 export interface SecurityOptions {
   port: number;
@@ -18,6 +26,8 @@ export interface SecurityOptions {
   isAuthenticated?: (req: FastifyRequest) => boolean;
   /** Returns the current agent token (read on every call, so a rotation takes effect immediately). */
   agentToken?: () => string;
+  /** Resolves a playbook run credential to an identity (unknown, expired and revoked ones return null). */
+  resolveRunToken?: (token: string) => RunIdentity | null;
   hooksRatePerSec?: number;
   hooksBurst?: number;
 }
@@ -80,9 +90,17 @@ export function registerSecurity(app: FastifyInstance, opts: SecurityOptions) {
     if (url.startsWith('/api/agent/')) {
       // the local MCP server: a separate token, never a browser (no Origin), own rate limit
       if (origin !== undefined) return deny(req, reply, 403, 'origin_not_allowed');
-      const tok = req.headers['x-qavo-agent-token'];
-      const expected = opts.agentToken?.() ?? '';
-      if (!expected || typeof tok !== 'string' || !timingSafeEq(tok, expected)) return deny(req, reply, 401, 'bad_agent_token');
+      const runTok = req.headers['x-qavo-run-token'];
+      if (runTok !== undefined) {
+        // a launched, named agent: its own credential, never a fallback to the shared token
+        const who = typeof runTok === 'string' ? opts.resolveRunToken?.(runTok) ?? null : null;
+        if (!who) return deny(req, reply, 401, 'bad_run_token');
+        req.agentRun = who;
+      } else {
+        const tok = req.headers['x-qavo-agent-token'];
+        const expected = opts.agentToken?.() ?? '';
+        if (!expected || typeof tok !== 'string' || !timingSafeEq(tok, expected)) return deny(req, reply, 401, 'bad_agent_token');
+      }
       const now = Date.now();
       agentTokens = Math.min(60, agentTokens + ((now - agentLast) / 1000) * 20);
       agentLast = now;

@@ -88,7 +88,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
             const s = msg.session as Session | null;
             if (s) setSessions((prev) => [s, ...prev.filter((x) => x.sessionId !== s.sessionId)].sort(byRecent));
             // a new session may have created a robot we have not seen yet
-            if (s?.robot) setRobots((prev) => (prev.some((r) => r.id === s.robot!.id) ? prev : [...prev, s.robot!]));
+            // ...and an agent's robot follows its agent's name, so a changed robot replaces the one we hold
+            if (s?.robot) setRobots((prev) => (prev.some((r) => r.id === s.robot!.id) ? prev.map((r) => (r.id === s.robot!.id && JSON.stringify(r) !== JSON.stringify(s.robot) ? s.robot! : r)) : [...prev, s.robot!]));
             break;
           }
           case 'permission.changed':

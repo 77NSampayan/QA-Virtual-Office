@@ -76,3 +76,11 @@
 - **Limits:** at most 20 requests wait at once; request bodies are capped at 8 KB; no permanent allow rules are ever written (`updatedPermissions` is never sent).
 - **Same-user limitation:** as with every token in this app, any process running as your Windows user can read the hook token and could create requests (not answer them). Answering needs your signed-in session.
 - **Not verified against a live Claude Code session** in this environment; see `docs/validation/v4b-permissions.md` for what to test.
+
+
+## Named agents (Pass P2)
+
+- `/api/agent/*` accepts either the shared agent token (unattributed, all agent tools, all projects) or a **run credential** (`X-QAVO-Run-Token`: one role, one project, 8 hours). A bad run credential is refused and never falls back to the shared token. Both are rejected on any request with an `Origin` header and share the agent rate limit.
+- A run credential cannot reach the person's API (no session cookie, no client header), cannot start, stop or list runs, and cannot rename agents. Only the signed-in person can launch and stop runs.
+- Credentials are random 256-bit values, hashed (SHA-256) at rest, compared by hash, shown nowhere, and removed with the run's config file when the run is stopped.
+- Limitation: the per-run config file holds the credential in clear for the lifetime of the run (any process running as the same Windows user can read it, as with the hook token). It is deleted when the run is stopped and on the next launch, and the credential expires after 8 hours.

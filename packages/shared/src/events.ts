@@ -107,6 +107,8 @@ export const SanitizedEventSchema = z
     fileCategory: z.enum(FILE_CATEGORIES).optional(),
     commandCategory: z.enum(COMMAND_CATEGORIES).optional(),
     content: OptInContentSchema.optional(),
+    /** Set only for a session launched from a playbook (QAVO_RUN_ID): a random id, never content. */
+    runId: z.string().regex(/^run_[A-Za-z0-9_-]{6,64}$/).optional(),
   })
   .strict();
 

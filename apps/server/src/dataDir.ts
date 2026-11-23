@@ -35,6 +35,8 @@ export interface DataDirPaths {
   agentToken: string;
   mcpDir: string;
   mcpScript: string;
+  /** Per-run MCP configs (each holds one run credential). */
+  runsDir: string;
   logs: string;
   backups: string;
   settingsBackups: string;
@@ -58,6 +60,7 @@ export function dataDirPaths(root: string): DataDirPaths {
     evidence: path.join(root, 'evidence'),
     agentToken: path.join(root, 'agent-token'),
     mcpDir: path.join(root, 'mcp'),
+    runsDir: path.join(root, 'runs'),
     mcpScript: path.join(root, 'mcp', 'qa-office-mcp.mjs'),
     logs: path.join(root, 'logs'),
     backups: path.join(root, 'backups'),

@@ -9,6 +9,7 @@ import { parsePolicy } from '@qavo/shared/policy';
 import { parseFolderKeySecret } from '@qavo/shared/folderKeys';
 import { resolveProject } from '@qavo/shared/resolve';
 import { sanitizeHookPayload } from '@qavo/shared/sanitize';
+import { RUN_ID_RE } from '@qavo/shared/playbooks';
 
 export const FORWARDER_VERSION = 1;
 export const POST_TIMEOUT_MS = 1500;
@@ -132,6 +133,9 @@ export async function runForwarder(deps: ForwarderDeps): Promise<Decision> {
     logDecision(dataDir, eventName, sessionId, 'dropped:invalid_payload');
     return 'dropped:invalid_payload';
   }
+
+  const runId = env.QAVO_RUN_ID;
+  if (typeof runId === 'string' && RUN_ID_RE.test(runId)) event.runId = runId; // a random id from a playbook launch; never content
 
   const token = readText(path.join(dataDir, 'token'))?.trim();
   if (!token) {

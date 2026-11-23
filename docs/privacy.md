@@ -137,3 +137,10 @@ When a person enables agent access, a connected Claude Code agent can read QA re
 ## Permission requests (V4b)
 
 If you turn on the permission bridge, a request shows a short redacted description of what Claude Code wants to do (only when tool-input capture is on; paths are masked and nothing from inside a file is shown). It exists only while the request is open and is erased when you answer or it expires; afterwards only the tool name, project and result are kept for a week. Nothing from a permission request is sent anywhere outside this PC.
+
+
+## Playbook runs (Pass P)
+
+- A session launched from a playbook has a random **run id** in its environment. The hook forwarder adds that id (and nothing else about the run) to the sanitized event; it is validated against a fixed pattern and is not stored on events. The server uses it only to name the session's robot.
+- The **run credential** is never in an event, a log, an export or any API response. Only its SHA-256 hash is in the database; the credential itself is in a per-run MCP config file in the data folder (current-user ACL) and is deleted when the run is stopped or on the next launch.
+- The agent's activity log records the agent's name and role, the tool, the project and the outcome: never the arguments or results.

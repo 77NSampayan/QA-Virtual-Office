@@ -3,6 +3,7 @@ import { api, unauthorizedListeners } from './api.ts';
 import { LiveProvider } from './live.tsx';
 import { Automation, ApiTesting, Metrics, TestData } from './pages/Placeholders.tsx';
 import { ManualQa } from './pages/ManualQa.tsx';
+import { Agents } from './pages/Agents.tsx';
 import { Control } from './pages/Control.tsx';
 import { Notifications } from './pages/Notifications.tsx';
 import { Overview } from './pages/Overview.tsx';
@@ -29,6 +30,8 @@ function Routes({ onSignOut }: { onSignOut: () => void }) {
       return <Control />;
     case '/robots':
       return <Robots />;
+    case '/agents':
+      return <Agents />;
     case '/notifications':
       return <Notifications />;
     case '/sessions':

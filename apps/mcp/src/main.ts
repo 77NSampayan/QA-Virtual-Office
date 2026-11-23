@@ -13,6 +13,9 @@ const dataDir = process.env.QAVO_DATA_DIR ?? path.join(process.env.LOCALAPPDATA 
 const port = Number(process.env.QAVO_PORT ?? 47821);
 const base = `http://127.0.0.1:${port}`;
 
+// A launched playbook run passes its own credential; otherwise the shared agent token is read from the data folder.
+const runToken = (process.env.QAVO_RUN_TOKEN ?? '').trim();
+
 const readToken = (): string => {
   try {
     return fs.readFileSync(path.join(dataDir, 'agent-token'), 'utf8').trim();
@@ -22,12 +25,12 @@ const readToken = (): string => {
 };
 
 async function request(method: 'GET' | 'POST', url: string, body?: unknown): Promise<ProxyResult> {
-  const token = readToken();
+  const token = runToken || readToken();
   if (!token) return { ok: false, status: 0, body: { error: 'no_agent_token', message: 'The QA Virtual Office data folder was not found. Start the app first.' } };
   try {
     const res = await fetch(base + url, {
       method,
-      headers: { 'x-qavo-agent-token': token, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      headers: { [runToken ? 'x-qavo-run-token' : 'x-qavo-agent-token']: token, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(15_000),
     });
@@ -47,6 +50,7 @@ async function request(method: 'GET' | 'POST', url: string, body?: unknown): Pro
 const backend: Backend = {
   listTools: () => request('GET', '/api/agent/tools'),
   callTool: (name, args) => request('POST', `/api/agent/tools/${encodeURIComponent(name)}`, args),
+  whoami: () => request('GET', '/api/agent/whoami'),
 };
 
 const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });

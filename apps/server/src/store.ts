@@ -302,6 +302,7 @@ export function assignRobot(db: DB, projectId: string | null, origin: SessionOri
       .prepare(
         `SELECT r.id FROM robots r
          WHERE (r.project_id IS ? OR r.project_id = ?)
+           AND r.playbook_id IS NULL
            AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.robot_id = r.id AND s.status <> 'disconnected')
          ORDER BY r.created_at LIMIT 1`,
       )
@@ -318,6 +319,21 @@ export function assignRobot(db: DB, projectId: string | null, origin: SessionOri
     projectId,
     nowIso(),
   );
+  return getRobot(db, id)!;
+}
+
+/**
+ * The robot of a named agent (a playbook run): one per agent per project, named and styled from the agent, never handed
+ * to an ordinary session. Its name follows the agent's current name.
+ */
+export function assignAgentRobot(db: DB, who: { projectId: string; playbookId: string; agentName: string; def: { robotType: string } }): RobotDTO {
+  const found = db.prepare('SELECT id, name FROM robots WHERE playbook_id = ? AND project_id = ?').get(who.playbookId, who.projectId) as { id: string; name: string } | undefined;
+  if (found) {
+    if (found.name !== who.agentName) db.prepare('UPDATE robots SET name = ? WHERE id = ?').run(who.agentName, found.id);
+    return getRobot(db, found.id)!;
+  }
+  const id = newId('bot');
+  db.prepare('INSERT INTO robots (id, name, robot_type, role, project_id, playbook_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, who.agentName, who.def.robotType, who.def.robotType, who.projectId, who.playbookId, nowIso());
   return getRobot(db, id)!;
 }
 

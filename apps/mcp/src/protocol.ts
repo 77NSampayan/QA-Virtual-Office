@@ -20,6 +20,8 @@ export interface ProxyResult {
 export interface Backend {
   listTools: () => Promise<ProxyResult>;
   callTool: (name: string, args: unknown) => Promise<ProxyResult>;
+  /** The playbook of a launched agent (its role, rules and checklist), or null for the shared, unattributed token. */
+  whoami?: () => Promise<ProxyResult>;
 }
 
 type Json = Record<string, unknown>;
@@ -58,7 +60,15 @@ export async function handleMessage(msg: unknown, backend: Backend): Promise<unk
     case 'initialize': {
       const wanted = typeof req.params?.protocolVersion === 'string' ? req.params.protocolVersion : '';
       const protocolVersion = (SUPPORTED_VERSIONS as readonly string[]).includes(wanted) ? wanted : SUPPORTED_VERSIONS[0];
-      return rpcResult(req.id, { protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: { name: SERVER_NAME, version: SERVER_VERSION }, instructions: INSTRUCTIONS });
+      let instructions = INSTRUCTIONS;
+      try {
+        const w = backend.whoami ? await backend.whoami() : null;
+        const body = w?.ok ? (w.body as { attributed?: boolean; instructions?: unknown } | null) : null;
+        if (body?.attributed && typeof body.instructions === 'string') instructions = body.instructions.slice(0, 8_000);
+      } catch {
+        // keep the generic instructions: the playbook is a convenience, the server enforces the rules anyway
+      }
+      return rpcResult(req.id, { protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: { name: SERVER_NAME, version: SERVER_VERSION }, instructions });
     }
     case 'ping':
       return rpcResult(req.id, {});

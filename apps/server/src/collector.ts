@@ -18,8 +18,10 @@ import {
 } from '@qavo/shared';
 import type { DB } from './db/index.ts';
 import { currentCapture } from './policyWriter.ts';
+import { activeRunForEvent } from './runs.ts';
 import {
   addFolderKeys,
+  assignAgentRobot,
   assignRobot,
   eventExists,
   eventRowToDto,
@@ -179,7 +181,11 @@ export function ingest(db: DB, body: unknown, broadcast: Broadcast, origin: Even
     meta.lastRule = t.rule;
 
     const created = t.effects.find((e) => e.type === 'session_created') as Extract<Effect, { type: 'session_created' }> | undefined;
-    if (created || !meta.robotId) {
+    // A session launched from a playbook (its hooks carry a run id) gets that agent's own robot: named, styled and kept
+    // apart from ordinary sessions. A run id that is unknown, expired, revoked or for another project is ignored.
+    const who = ev.runId ? activeRunForEvent(db, ev.runId, meta.projectId) : null;
+    if (who) meta.robotId = assignAgentRobot(db, who).id;
+    else if (created || !meta.robotId) {
       meta.robotId = assignRobot(db, meta.projectId, created?.origin ?? t.state.origin).id;
     }
 

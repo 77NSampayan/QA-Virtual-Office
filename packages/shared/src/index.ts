@@ -10,3 +10,6 @@ export * from './execution.ts';
 export * from './defects.ts';
 export * from './bubbles.ts';
 export * from './permissionSummary.ts';
+export * from './testCaseImport.ts';
+export * from './playbooks.ts';
+export * from './reviews.ts';

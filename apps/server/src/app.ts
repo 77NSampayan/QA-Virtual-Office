@@ -21,6 +21,7 @@ import { registerQaExecRoutes } from './qaExecRoutes.ts';
 import { registerQaRoutes } from './qaRoutes.ts';
 import { registerQaWorkRoutes } from './qaWorkRoutes.ts';
 import { registerRoutes, type Runtime } from './routes.ts';
+import { resolveRunToken } from './runs.ts';
 import { registerSecurity } from './security.ts';
 import {
   createProject,
@@ -96,6 +97,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
     port,
     token: opts.token,
     agentToken: () => readAgentToken(paths),
+    resolveRunToken: (t) => resolveRunToken(db, t),
     isAuthenticated: authRequired ? (req) => auth.verifyHeader(req.headers.cookie) : undefined,
   });
   await app.register(fastifyWebsocket);

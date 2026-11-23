@@ -9,6 +9,7 @@
  *    edit only its own drafts
  *  - `system` raises automatic hints only
  */
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import {
   analyzeRequirement,
@@ -18,8 +19,11 @@ import {
   FLAG_TYPES,
   inferKind,
   parseRequirements,
+  parseTestCaseTable,
   PRIORITIES,
+  redact,
   REQUIREMENT_KINDS,
+  REVIEW_FILTERS,
   REVIEW_STATUSES,
   TEST_CASE_STATUSES,
   TEST_TYPES,
@@ -118,10 +122,22 @@ export interface RequirementDetailDTO extends RequirementDTO {
   flags: FlagDTO[];
   testCases: Array<{ id: string; code: string; title: string; status: string }>;
 }
+export interface ReviewSummary {
+  verdict: 'recommend_approve' | 'changes_requested';
+  by: string;
+  at: string;
+  notes: string;
+  /** False when the test case was edited after this review (the review is about an older version). */
+  current: boolean;
+}
 export interface TestCaseDTO {
   id: string;
   projectId: string;
   code: string;
+  /** The id from the team's own sheet when imported ("" if written in the app). */
+  externalId: string;
+  /** The named agent that drafted it (empty if a person, an import, or an unattributed agent). */
+  draftedBy: string;
   scenario: string;
   title: string;
   description: string;
@@ -140,6 +156,8 @@ export interface TestCaseDTO {
   approvedAt: string | null;
   rejectionNote: string;
   version: number;
+  /** The latest recommendation from a reviewer agent (Pass P3), or null. Never a decision: a person approves. */
+  review: ReviewSummary | null;
   /** Latest finished result from test runs (Pass 2B), else IN PROGRESS, else NOT RUN. */
   executionStatus: string;
   archived: boolean;
@@ -156,9 +174,16 @@ export interface HistoryDTO {
   note: string;
   changes: Record<string, unknown>;
 }
+export interface ReplyDTO {
+  by: string;
+  at: string;
+  note: string;
+}
 export interface TestCaseDetailDTO extends TestCaseDTO {
   requirements: Array<{ id: string; ref: string; title: string }>;
   history: HistoryDTO[];
+  /** What the writer agent answered to the latest review (since that review), oldest first. */
+  replies: ReplyDTO[];
 }
 
 type Row = Record<string, unknown>;
@@ -377,7 +402,17 @@ export function runRequirementChecks(db: DB, projectId: string, actor: Actor = '
 }
 
 // ---------------------------------------------------------------------------- test cases
+/** Fingerprint of everything a reviewer reads: an edit changes it, so an older review is shown as outdated. */
+export function testCaseContentHash(r: Row): string {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify([r.title, r.scenario, r.description, r.preconditions, r.steps_json, r.test_data, r.expected_result]))
+    .digest('hex');
+}
+
 const TC_SELECT = `SELECT t.*,
+    (SELECT json_object('verdict', v.verdict, 'by', v.reviewer_name, 'at', v.created_at, 'notes', v.notes, 'hash', v.subject_hash)
+       FROM agent_reviews v WHERE v.subject_id = t.id ORDER BY v.created_at DESC, v.rowid DESC LIMIT 1) AS latest_review,
     (SELECT group_concat(x.requirement_id, ',') FROM test_case_requirements x WHERE x.test_case_id = t.id) AS req_ids,
     (SELECT group_concat(r.ref, char(31)) FROM test_case_requirements x JOIN requirements r ON r.id = x.requirement_id WHERE x.test_case_id = t.id) AS req_refs,
     COALESCE(
@@ -385,6 +420,16 @@ const TC_SELECT = `SELECT t.*,
       (SELECT e.status FROM test_executions e WHERE e.test_case_id = t.id AND e.status = 'in_progress' LIMIT 1)
     ) AS exec_status
   FROM test_cases t`;
+
+function reviewOf(r: Row): ReviewSummary | null {
+  if (!r.latest_review) return null;
+  try {
+    const v = JSON.parse(r.latest_review as string) as { verdict: ReviewSummary['verdict']; by: string; at: string; notes: string; hash: string };
+    return { verdict: v.verdict, by: v.by, at: v.at, notes: v.notes, current: v.hash === testCaseContentHash(r) };
+  } catch {
+    return null;
+  }
+}
 
 function tcDto(r: Row): TestCaseDTO {
   let steps: string[] = [];
@@ -397,6 +442,9 @@ function tcDto(r: Row): TestCaseDTO {
     id: r.id as string,
     projectId: r.project_id as string,
     code: r.code as string,
+    externalId: (r.external_id as string) ?? '',
+    draftedBy: (r.drafted_by_name as string) ?? '',
+    review: reviewOf(r),
     scenario: r.scenario as string,
     title: r.title as string,
     description: r.description as string,
@@ -456,26 +504,137 @@ function addHistory(
 
 const cleanSteps = (steps: string[]) => steps.map((s) => s.trim()).filter(Boolean);
 
-export function createTestCase(db: DB, projectId: string, input: unknown, actor: Actor): TestCaseDTO {
+/** Inserts one DRAFT test case (call inside a transaction). Never approved: approval is a separate human-only step. */
+function insertDraft(db: DB, projectId: string, v: z.infer<typeof TestCaseFields>, actor: Actor, extra: { externalId?: string; action?: string; note?: string; draftedBy?: { name: string; runId: string } } = {}): string {
+  const id = newId('tc');
+  const ts = nowIso();
+  const seq = ((db.prepare('SELECT MAX(seq) AS m FROM test_cases WHERE project_id = ?').get(projectId) as { m: number | null }).m ?? 0) + 1;
+  db.prepare(
+    `INSERT INTO test_cases (id, project_id, seq, code, external_id, drafted_by_name, drafted_by_run, scenario, title, description, preconditions, steps_json, test_data, expected_result, priority, test_type,
+       assigned_tester, status, authored_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
+  ).run(id, projectId, seq, `TC-${String(seq).padStart(4, '0')}`, extra.externalId ?? '', extra.draftedBy?.name ?? '', extra.draftedBy?.runId ?? null, v.scenario, v.title, v.description, v.preconditions, JSON.stringify(cleanSteps(v.steps)), v.testData, v.expectedResult, v.priority, v.testType, v.assignedTester, actor, ts, ts);
+  const link = db.prepare('INSERT OR IGNORE INTO test_case_requirements (test_case_id, requirement_id) VALUES (?, ?)');
+  for (const rid of v.requirementIds) link.run(id, rid);
+  addHistory(db, id, { actor, action: extra.action ?? 'created', to: 'draft', note: extra.note });
+  return id;
+}
+
+export function createTestCase(db: DB, projectId: string, input: unknown, actor: Actor, draftedBy?: { name: string; runId: string }): TestCaseDTO {
   if (actor === 'system') needHuman(actor);
   const v = parse(TestCaseFields, input);
   requireProject(db, projectId);
   assertRequirementsInProject(db, projectId, v.requirementIds);
-  const id = newId('tc');
-  const ts = nowIso();
-  db.transaction(() => {
-    const seq = ((db.prepare('SELECT MAX(seq) AS m FROM test_cases WHERE project_id = ?').get(projectId) as { m: number | null }).m ?? 0) + 1;
-    db.prepare(
-      `INSERT INTO test_cases (id, project_id, seq, code, scenario, title, description, preconditions, steps_json, test_data, expected_result, priority, test_type,
-         assigned_tester, status, authored_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
-    ).run(id, projectId, seq, `TC-${String(seq).padStart(4, '0')}`, v.scenario, v.title, v.description, v.preconditions, JSON.stringify(cleanSteps(v.steps)), v.testData, v.expectedResult, v.priority, v.testType, v.assignedTester, actor, ts, ts);
-    const link = db.prepare('INSERT OR IGNORE INTO test_case_requirements (test_case_id, requirement_id) VALUES (?, ?)');
-    for (const rid of v.requirementIds) link.run(id, rid);
-    addHistory(db, id, { actor, action: 'created', to: 'draft' });
-  })();
+  const id = db.transaction(() => insertDraft(db, projectId, v, actor, { draftedBy }))();
   return loadTestCase(db, id);
 }
+
+// ---------------------------------------------------------------------------- import test cases from a table
+const TestCaseImportInput = z.object({ text: z.string().max(400_000), dryRun: z.boolean().default(false) }).strict();
+
+export interface TestCaseImportResult {
+  dryRun: boolean;
+  format: string;
+  total: number;
+  wouldCreate: Array<{ row: number; externalId: string; title: string }>;
+  created: number;
+  skippedExisting: string[];
+  duplicatesInText: string[];
+  rowErrors: Array<{ row: number; reason: string }>;
+  warnings: Array<{ row: number; text: string }>;
+  columns: { recognised: string[]; ignored: string[]; unknown: string[] };
+  rowsWithoutId: number;
+  truncated: boolean;
+}
+
+/**
+ * Imports test cases from a Markdown table or a table pasted from a spreadsheet. HUMAN only. Every imported case
+ * is a DRAFT authored by the person (never approved, never given a result): approval and execution stay human
+ * steps afterwards. Re-importing is safe: a row whose Test Case ID already exists in the project is skipped.
+ */
+export function importTestCases(db: DB, projectId: string, input: unknown, actor: Actor): TestCaseImportResult {
+  needHuman(actor);
+  const v = parse(TestCaseImportInput, input);
+  requireProject(db, projectId);
+  const parsed = parseTestCaseTable(v.text);
+  if (parsed.missingDescriptionColumn) throw new HttpError(400, 'missing_column', 'The table needs a "Test Case Description" column');
+  if (parsed.rows.length === 0 && parsed.rowErrors.length === 0) {
+    throw new HttpError(400, 'nothing_to_import', 'No test cases were found: paste a Markdown table (or cells copied from a spreadsheet) with a header row');
+  }
+  const reqByRef = new Map<string, string>(
+    (db.prepare('SELECT id, ref FROM requirements WHERE project_id = ?').all(projectId) as Array<{ id: string; ref: string }>).map((r) => [r.ref.toLowerCase(), r.id]),
+  );
+  const existingIds = new Set(
+    (db.prepare("SELECT lower(external_id) AS e FROM test_cases WHERE project_id = ? AND external_id <> ''").all(projectId) as Array<{ e: string }>).map((r) => r.e),
+  );
+  const seen = new Set<string>();
+  const skippedExisting: string[] = [];
+  const duplicatesInText: string[] = [];
+  const rowErrors = [...parsed.rowErrors];
+  const warnings: Array<{ row: number; text: string }> = [];
+  const todo: Array<{ row: number; externalId: string; input: z.infer<typeof TestCaseFields> }> = [];
+  let rowsWithoutId = 0;
+  for (const r of parsed.rows) {
+    for (const w of r.warnings) warnings.push({ row: r.row, text: w });
+    const key = r.externalId.toLowerCase();
+    if (key) {
+      if (existingIds.has(key)) {
+        skippedExisting.push(r.externalId);
+        continue;
+      }
+      if (seen.has(key)) {
+        duplicatesInText.push(r.externalId);
+        continue;
+      }
+      seen.add(key);
+    } else rowsWithoutId++;
+    const requirementIds: string[] = [];
+    for (const ref of r.requirementRefs) {
+      const rid = reqByRef.get(ref.toLowerCase());
+      if (rid) requirementIds.push(rid);
+      else warnings.push({ row: r.row, text: `Requirement "${ref.slice(0, 40)}" does not exist in this project, so it was not linked` });
+    }
+    const parsedCase = TestCaseFields.safeParse({
+      scenario: clipText([r.module, r.subModule].filter(Boolean).join(' › '), 200),
+      title: r.title,
+      description: clipText(r.description, 10_000),
+      preconditions: clipText(r.preconditions, 5_000),
+      steps: r.steps.slice(0, 100).map((s) => clipText(s, 2_000)),
+      testData: clipText(r.testData, 10_000),
+      expectedResult: clipText(r.expectedResult, 10_000),
+      priority: r.priority,
+      testType: r.testType,
+      assignedTester: r.assignedTester,
+      requirementIds,
+    });
+    if (!parsedCase.success) rowErrors.push({ row: r.row, reason: 'The row could not be read as a test case' });
+    else todo.push({ row: r.row, externalId: r.externalId, input: parsedCase.data });
+  }
+  let created = 0;
+  if (!v.dryRun && todo.length) {
+    db.transaction(() => {
+      for (const t of todo) {
+        insertDraft(db, projectId, t.input, 'human', { externalId: t.externalId, action: 'imported', note: `Imported from a table (row ${t.row})` });
+        created++;
+      }
+    })();
+  }
+  return {
+    dryRun: v.dryRun,
+    format: parsed.format,
+    total: parsed.rows.length + parsed.rowErrors.length,
+    wouldCreate: todo.map((t) => ({ row: t.row, externalId: t.externalId, title: t.input.title })),
+    created,
+    skippedExisting,
+    duplicatesInText,
+    rowErrors,
+    warnings,
+    columns: parsed.columns,
+    rowsWithoutId,
+    truncated: parsed.truncated,
+  };
+}
+const clipText = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s);
 
 const SHORT_FIELDS = new Set(['title', 'scenario', 'priority', 'testType', 'assignedTester']);
 
@@ -576,6 +735,8 @@ export interface TestCaseFilters {
   authoredBy?: string;
   q?: string;
   includeArchived?: boolean;
+  /** By the latest reviewer recommendation: recommend_approve | changes_requested | outdated | unreviewed. */
+  review?: string;
 }
 
 export function listTestCases(db: DB, f: TestCaseFilters): TestCaseDTO[] {
@@ -595,10 +756,17 @@ export function listTestCases(db: DB, f: TestCaseFilters): TestCaseDTO[] {
   filter('EXISTS (SELECT 1 FROM test_case_requirements x WHERE x.test_case_id = t.id AND x.requirement_id = ?)', f.requirementId);
   if (f.q?.trim()) {
     const like = `%${f.q.trim().toLowerCase().replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
-    where.push("(lower(t.title) LIKE ? ESCAPE '\\' OR lower(t.scenario) LIKE ? ESCAPE '\\' OR lower(t.description) LIKE ? ESCAPE '\\' OR lower(t.code) LIKE ? ESCAPE '\\')");
-    args.push(like, like, like, like);
+    where.push("(lower(t.title) LIKE ? ESCAPE '\\' OR lower(t.scenario) LIKE ? ESCAPE '\\' OR lower(t.description) LIKE ? ESCAPE '\\' OR lower(t.code) LIKE ? ESCAPE '\\' OR lower(t.external_id) LIKE ? ESCAPE '\\')");
+    args.push(like, like, like, like, like);
   }
-  return (db.prepare(`${TC_SELECT} WHERE ${where.join(' AND ')} ORDER BY t.seq`).all(...args) as Row[]).map(tcDto);
+  const all = (db.prepare(`${TC_SELECT} WHERE ${where.join(' AND ')} ORDER BY t.seq`).all(...args) as Row[]).map(tcDto);
+  const want = (REVIEW_FILTERS as readonly string[]).includes(f.review ?? '') ? f.review : undefined;
+  if (!want) return all;
+  return all.filter((t) => {
+    if (want === 'unreviewed') return t.review === null;
+    if (want === 'outdated') return t.review !== null && !t.review.current;
+    return t.review !== null && t.review.current && t.review.verdict === want;
+  });
 }
 
 export function getTestCase(db: DB, id: string): TestCaseDetailDTO {
@@ -618,7 +786,42 @@ export function getTestCase(db: DB, id: string): TestCaseDetailDTO {
       changes: JSON.parse(h.changes_json as string) as Record<string, unknown>,
     }),
   );
-  return { ...tc, requirements, history };
+  return { ...tc, requirements, history, replies: repliesSinceReview(db, id) };
+}
+
+export const MAX_REPLY = 1_000;
+
+/** What the writer answered to the latest review, since that review. Empty when there is no review. */
+export function repliesSinceReview(db: DB, testCaseId: string): ReplyDTO[] {
+  const tc = loadTestCase(db, testCaseId);
+  if (!tc.review) return [];
+  return (
+    db.prepare("SELECT at, note, changes_json FROM test_case_history WHERE test_case_id = ? AND action = 'reply_to_review' AND at >= ? ORDER BY at, rowid").all(testCaseId, tc.review.at) as Array<{ at: string; note: string; changes_json: string }>
+  ).map((h) => ({ by: String((JSON.parse(h.changes_json) as { by?: string }).by ?? ''), at: h.at, note: h.note }));
+}
+
+/**
+ * A named writer agent answers the reviewer's latest review (for example why it did not change something). Saved in the
+ * append-only history with the agent's name; redacted and capped. It decides nothing and changes nothing else.
+ */
+export function addReplyToReview(db: DB, testCaseId: string, agentName: string, note: string): ReplyDTO {
+  const tc = loadTestCase(db, testCaseId);
+  if (!tc.review) throw new HttpError(409, 'no_review_to_reply_to', 'There is no review on this test case to answer.');
+  const text = redact(note).trim().slice(0, MAX_REPLY);
+  if (!text) throw new HttpError(400, 'invalid_input', 'The reply is empty.');
+  const at = nowIso();
+  db.prepare('INSERT INTO test_case_history (id, test_case_id, at, actor, action, from_status, to_status, note, changes_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+    newId('hst'),
+    testCaseId,
+    at,
+    'agent',
+    'reply_to_review',
+    null,
+    null,
+    text,
+    JSON.stringify({ by: agentName, reviewBy: tc.review.by }),
+  );
+  return { by: agentName, at, note: text };
 }
 
 // ---------------------------------------------------------------------------- traceability

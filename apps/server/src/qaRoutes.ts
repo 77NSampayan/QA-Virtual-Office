@@ -9,6 +9,9 @@ import type { Actor } from '@qavo/shared';
 import type { Broadcast } from './collector.ts';
 import type { DB } from './db/index.ts';
 import * as qa from './qa.ts';
+import { getPlaybook, listPlaybooks, resetPlaybook, updatePlaybook } from './playbooks.ts';
+import { handDraftToWriter } from './qaReview.ts';
+import { HttpError } from './store.ts';
 
 const human: Actor = 'human';
 
@@ -17,6 +20,11 @@ export function registerQaRoutes(app: FastifyInstance, deps: { db: DB; broadcast
   const changed = (entity: string, projectId?: string) => broadcast({ type: 'qa.changed', entity, projectId: projectId ?? null });
   const projectOf = (table: 'requirements' | 'test_cases', id: string) =>
     (db.prepare(`SELECT project_id FROM ${table} WHERE id = ?`).get(id) as { project_id: string } | undefined)?.project_id;
+
+  // ---------------------------------------------------------------- agent playbooks (person only: rename, house rules)
+  app.get('/api/playbooks', async () => listPlaybooks(db));
+  app.patch<{ Params: { id: string }; Body: unknown }>('/api/playbooks/:id', async (req) => updatePlaybook(db, req.params.id, req.body, human));
+  app.post<{ Params: { id: string } }>('/api/playbooks/:id/reset', async (req) => resetPlaybook(db, req.params.id, human));
 
   // ---------------------------------------------------------------- requirements
   app.get<{ Params: { pid: string } }>('/api/projects/:pid/requirements', async (req) => qa.listRequirements(db, req.params.pid));
@@ -61,10 +69,15 @@ export function registerQaRoutes(app: FastifyInstance, deps: { db: DB; broadcast
   // ---------------------------------------------------------------- test cases
   app.get<{
     Params: { pid: string };
-    Querystring: { status?: string; testType?: string; priority?: string; requirementId?: string; authoredBy?: string; q?: string; includeArchived?: string };
+    Querystring: { status?: string; testType?: string; priority?: string; requirementId?: string; authoredBy?: string; q?: string; includeArchived?: string; review?: string };
   }>('/api/projects/:pid/test-cases', async (req) =>
     qa.listTestCases(db, { projectId: req.params.pid, ...req.query, includeArchived: req.query.includeArchived === 'true' }),
   );
+  app.post<{ Params: { pid: string }; Body: unknown }>('/api/projects/:pid/test-cases/import', { bodyLimit: 512 * 1024 }, async (req) => {
+    const r = qa.importTestCases(db, req.params.pid, req.body, human);
+    if (!r.dryRun && r.created > 0) changed('test_case', req.params.pid);
+    return r;
+  });
   app.post<{ Params: { pid: string }; Body: unknown }>('/api/projects/:pid/test-cases', async (req, reply) => {
     const t = qa.createTestCase(db, req.params.pid, req.body, human);
     changed('test_case', req.params.pid);
@@ -82,6 +95,13 @@ export function registerQaRoutes(app: FastifyInstance, deps: { db: DB; broadcast
     const t = qa.transitionTestCase(db, req.params.id, to, note, human);
     changed('test_case', t.projectId);
     return t;
+  });
+  app.post<{ Params: { id: string }; Body: { playbookId?: unknown } }>('/api/test-cases/:id/hand-to-agent', async (req) => {
+    if (typeof req.body?.playbookId !== 'string') throw new HttpError(400, 'invalid_input', 'playbookId must be text');
+    const pb = getPlaybook(db, req.body.playbookId);
+    const r = handDraftToWriter(db, req.params.id, { agentName: pb.agentName, kind: pb.kind }, human);
+    changed('test_case', projectOf('test_cases', req.params.id));
+    return r;
   });
   app.post<{ Params: { id: string }; Body: { archived?: unknown } }>('/api/test-cases/:id/archive', async (req) => {
     const t = qa.setArchived(db, req.params.id, req.body?.archived !== false, human);

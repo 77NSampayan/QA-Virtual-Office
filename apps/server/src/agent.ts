@@ -13,7 +13,9 @@
 import { z } from 'zod';
 import { redactObject, type Actor } from '@qavo/shared';
 import type { DB } from './db/index.ts';
+import type { RunIdentity } from './runs.ts';
 import * as qa from './qa.ts';
+import * as rv from './qaReview.ts';
 import * as df from './qaDefects.ts';
 import * as ex from './qaExec.ts';
 import * as wk from './qaWork.ts';
@@ -63,6 +65,8 @@ function toJsonSchema(fields: Fields) {
 interface Ctx {
   db: DB;
   projectId: string;
+  /** Set when the call comes from a launched playbook run; absent for the shared (unattributed) agent token. */
+  identity?: RunIdentity;
 }
 function projectIdOf(db: DB, alias: string): string {
   const r = db.prepare('SELECT id FROM projects WHERE lower(alias) = lower(?) AND archived = 0').get(alias.trim()) as { id: string } | undefined;
@@ -107,6 +111,7 @@ interface Tool {
   run: (ctx: Ctx, args: Record<string, unknown>) => unknown;
 }
 const PROJECT = str('Project name exactly as shown in Project Rooms (the safe alias)', { req: true, max: 100 });
+const VERDICTS = ['recommend_approve', 'changes_requested'] as const;
 const TC_TYPES = ['positive', 'negative', 'boundary_value', 'equivalence_partitioning', 'decision_table', 'state_transition', 'exploratory', 'regression', 'integration', 'end_to_end'] as const;
 const SEVERITY = ['critical', 'major', 'minor', 'trivial'] as const;
 const PRIORITY = ['critical', 'high', 'medium', 'low'] as const;
@@ -118,7 +123,12 @@ const TOOLS: Tool[] = [
     description: 'List the registered QA projects you may work in (names only).',
     fields: {},
     project: false,
-    run: ({ db }) => ({ projects: (db.prepare('SELECT alias, description, type FROM projects WHERE archived = 0 ORDER BY alias').all() as Array<Record<string, unknown>>).slice(0, LIST_CAP) }),
+    run: ({ db, identity }) => ({
+      projects: (identity
+        ? (db.prepare('SELECT alias, description, type FROM projects WHERE archived = 0 AND id = ? ORDER BY alias').all(identity.projectId) as Array<Record<string, unknown>>)
+        : (db.prepare('SELECT alias, description, type FROM projects WHERE archived = 0 ORDER BY alias').all() as Array<Record<string, unknown>>)
+      ).slice(0, LIST_CAP),
+    }),
   },
   {
     name: 'qa_get_summary',
@@ -165,7 +175,7 @@ const TOOLS: Tool[] = [
     description: 'List test cases of a project (code, title, status, priority, requirement refs, latest result). Read-only.',
     fields: { project: PROJECT, status: str('Filter by status', { enum: ['draft', 'in_review', 'approved', 'rejected'] }) },
     run: ({ db, projectId }, a) =>
-      cap(qa.listTestCases(db, { projectId, ...(a.status ? { status: s<string>(a.status) } : {}), includeArchived: false }).map((t) => ({ code: t.code, title: t.title, status: t.status, priority: t.priority, testType: t.testType, requirements: t.requirementRefs, authoredBy: t.authoredBy, latestResult: t.executionStatus }))),
+      cap(qa.listTestCases(db, { projectId, ...(a.status ? { status: s<string>(a.status) } : {}), includeArchived: false }).map((t) => ({ code: t.code, title: t.title, status: t.status, priority: t.priority, testType: t.testType, requirements: t.requirementRefs, authoredBy: t.authoredBy, draftedBy: t.draftedBy, review: t.review ? { verdict: t.review.verdict, by: t.review.by, current: t.review.current } : null, latestResult: t.executionStatus }))),
   },
   {
     name: 'qa_get_test_case',
@@ -173,7 +183,7 @@ const TOOLS: Tool[] = [
     fields: { project: PROJECT, code: str('Test case code, e.g. TC-0001', { req: true, max: 20 }) },
     run: (ctx, a) => {
       const t = qa.getTestCase(ctx.db, testCaseId(ctx, s<string>(a.code)));
-      return { code: t.code, title: t.title, status: t.status, scenario: t.scenario, description: t.description, preconditions: t.preconditions, steps: t.steps, testData: t.testData, expectedResult: t.expectedResult, priority: t.priority, testType: t.testType, requirements: t.requirementRefs, authoredBy: t.authoredBy };
+      return { code: t.code, title: t.title, status: t.status, scenario: t.scenario, description: t.description, preconditions: t.preconditions, steps: t.steps, testData: t.testData, expectedResult: t.expectedResult, priority: t.priority, testType: t.testType, requirements: t.requirementRefs, authoredBy: t.authoredBy, draftedBy: t.draftedBy, review: t.review, replies: t.replies };
     },
   },
   {
@@ -197,20 +207,53 @@ const TOOLS: Tool[] = [
       const { project: _p, requirementRefs: _r, ...fields } = a;
       void _p;
       void _r;
-      const t = qa.createTestCase(ctx.db, ctx.projectId, { ...fields, requirementIds: refs.map((r) => requirementId(ctx, r)) }, AGENT);
+      const t = qa.createTestCase(ctx.db, ctx.projectId, { ...fields, requirementIds: refs.map((r) => requirementId(ctx, r)) }, AGENT, ctx.identity ? { name: ctx.identity.agentName, runId: ctx.identity.runId } : undefined);
       return { code: t.code, status: t.status, authoredBy: t.authoredBy };
     },
   },
   {
     name: 'qa_update_test_case_draft',
     description: 'Edit a draft test case that YOU created (not one written by a person, and not once it is in review or approved).',
-    fields: { project: PROJECT, code: str('Test case code', { req: true, max: 20 }), title: str('New title', { max: 200 }), steps: strs('Replacement steps', { maxItems: 100, maxLen: 2_000 }), expectedResult: str('New expected result', { max: 10_000 }), description: str('New description', { max: 10_000 }), preconditions: str('New preconditions', { max: 5_000 }), testData: str('New test data', { max: 10_000 }) },
+    fields: { project: PROJECT, code: str('Test case code', { req: true, max: 20 }), title: str('New title', { max: 200 }), steps: strs('Replacement steps', { maxItems: 100, maxLen: 2_000 }), expectedResult: str('New expected result', { max: 10_000 }), description: str('New description', { max: 10_000 }), preconditions: str('New preconditions', { max: 5_000 }), testData: str('New test data', { max: 10_000 }), replyToReviewer: str('Your answer to the reviewer’s latest review: what you changed, or why you did not change something. Saved with the test case and shown to the reviewer.', { max: 1_000 }) },
     run: (ctx, a) => {
-      const { project: _p, code, ...patch } = a;
+      const { project: _p, code, replyToReviewer, ...patch } = a;
       void _p;
-      const t = qa.updateTestCase(ctx.db, testCaseId(ctx, s<string>(code)), patch, AGENT);
-      return { code: t.code, status: t.status, version: t.version };
+      const id = testCaseId(ctx, s<string>(code));
+      const reply = typeof replyToReviewer === 'string' ? replyToReviewer.trim() : '';
+      if (ctx.identity) {
+        const by = (ctx.db.prepare('SELECT drafted_by_name AS n FROM test_cases WHERE id = ?').get(id) as { n: string }).n;
+        if (by !== ctx.identity.agentName) throw new HttpError(403, 'not_your_draft', 'A named agent may edit only the drafts it wrote itself');
+      }
+      if (reply && !qa.getTestCase(ctx.db, id).review) throw new HttpError(409, 'no_review_to_reply_to', 'There is no review on this test case to answer.');
+      if (!reply && Object.keys(patch).length === 0) throw new HttpError(400, 'invalid_input', 'Nothing to change');
+      const name = ctx.identity?.agentName ?? 'agent';
+      return ctx.db.transaction(() => {
+        const t = Object.keys(patch).length ? qa.updateTestCase(ctx.db, id, patch, AGENT) : qa.getTestCase(ctx.db, id);
+        if (reply) qa.addReplyToReview(ctx.db, id, name, reply);
+        return { code: t.code, status: t.status, version: t.version, replied: reply.length > 0 };
+      })();
     },
+  },
+  {
+    name: 'qa_list_my_changes_requested',
+    description: 'Writer agents only: your own draft test cases whose latest review asks for changes (with the reviewer’s notes). Fix them with qa_update_test_case_draft and answer the reviewer with replyToReviewer. Read-only.',
+    fields: { project: PROJECT },
+    run: (ctx) => {
+      const r = rv.listMyChangesRequested(ctx.db, ctx.identity);
+      return { ...cap(r.items), notYours: r.notYours, ...(r.notYours ? { note: `${r.notYours} other draft(s) written before agents had names also need changes. They are not yours to edit, and you must NOT recreate them as new drafts: tell the person to hand them to you (Hand to ${ctx.identity?.agentName} in the test case).` } : {}) };
+    },
+  },
+  {
+    name: 'qa_list_my_reviewable',
+    description: 'Reviewer agents only: the draft test cases you may review now (not written by you; never reviewed, or edited since the last review). Read-only.',
+    fields: { project: PROJECT },
+    run: (ctx) => cap(rv.listReviewable(ctx.db, ctx.identity)),
+  },
+  {
+    name: 'qa_review_test_case',
+    description: 'Reviewer agents only: record your review of a draft test case written by someone else. A recommendation to a person (recommend approval, or request changes with notes): it never approves or rejects anything and never changes the status.',
+    fields: { project: PROJECT, code: str('Test case code, e.g. TC-0001', { req: true, max: 20 }), verdict: str('Your recommendation', { req: true, enum: VERDICTS }), notes: str('What is good, or exactly what must change (required for changes_requested)', { max: 2_000 }) },
+    run: (ctx, a) => rv.reviewTestCase(ctx.db, testCaseId(ctx, s<string>(a.code)), { verdict: a.verdict, notes: a.notes ?? '' }, ctx.identity),
   },
   {
     name: 'qa_list_defects',
@@ -291,34 +334,39 @@ export interface ToolDescriptor {
   description: string;
   inputSchema: Record<string, unknown>;
 }
-export const agentToolList = (): ToolDescriptor[] =>
-  TOOLS.map((t) => ({ name: t.name, description: t.description, inputSchema: toJsonSchema(t.fields) }));
+/** The tools an agent sees: all of them for the shared token, only its role's for a launched run. */
+export const agentToolList = (identity?: RunIdentity): ToolDescriptor[] =>
+  TOOLS.filter((t) => !identity || identity.def.tools.includes(t.name)).map((t) => ({ name: t.name, description: t.description, inputSchema: toJsonSchema(t.fields) }));
 
 // ---------------------------------------------------------------------------- access switch and audit
 export const agentAccessEnabled = (db: DB): boolean => getSetting<boolean>(db, 'agent_access', false) === true;
 export const setAgentAccess = (db: DB, enabled: boolean) => setSetting(db, 'agent_access', enabled);
 
-function audit(db: DB, tool: string, projectId: string | null, outcome: 'ok' | 'denied' | 'error', code = '') {
-  db.prepare('INSERT INTO agent_audit (id, at, tool, project_id, outcome, code) VALUES (?, ?, ?, ?, ?, ?)').run(newId('aud'), new Date().toISOString(), tool.slice(0, 60), projectId, outcome, code.slice(0, 60));
+function audit(db: DB, tool: string, projectId: string | null, outcome: 'ok' | 'denied' | 'error', code = '', who?: RunIdentity) {
+  db.prepare('INSERT INTO agent_audit (id, at, tool, project_id, outcome, code, agent_name, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(newId('aud'), new Date().toISOString(), tool.slice(0, 60), projectId, outcome, code.slice(0, 60), who?.agentName ?? '', who?.role ?? '');
 }
 export function recentAgentActivity(db: DB, limit = 50) {
   return (
     db
-      .prepare('SELECT a.at, a.tool, a.outcome, a.code, p.alias AS project FROM agent_audit a LEFT JOIN projects p ON p.id = a.project_id ORDER BY a.at DESC, a.rowid DESC LIMIT ?')
-      .all(Math.min(limit, 200)) as Array<{ at: string; tool: string; outcome: string; code: string; project: string | null }>
-  ).map((r) => ({ at: r.at, tool: r.tool, outcome: r.outcome, code: r.code, project: r.project }));
+      .prepare('SELECT a.at, a.tool, a.outcome, a.code, a.agent_name, a.role, p.alias AS project FROM agent_audit a LEFT JOIN projects p ON p.id = a.project_id ORDER BY a.at DESC, a.rowid DESC LIMIT ?')
+      .all(Math.min(limit, 200)) as Array<{ at: string; tool: string; outcome: string; code: string; agent_name: string; role: string; project: string | null }>
+  ).map((r) => ({ at: r.at, tool: r.tool, outcome: r.outcome, code: r.code, project: r.project, agent: r.agent_name ? `${r.agent_name} (${r.role})` : null }));
 }
 
 /** Runs one agent tool. Returns redacted output; throws HttpError for everything the caller should see. */
-export function callAgentTool(db: DB, name: string, rawArgs: unknown): unknown {
+export function callAgentTool(db: DB, name: string, rawArgs: unknown, identity?: RunIdentity): unknown {
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) {
-    audit(db, 'unknown', null, 'denied', 'unknown_tool');
+    audit(db, 'unknown', null, 'denied', 'unknown_tool', identity);
     throw new HttpError(404, 'unknown_tool', 'There is no such tool. Agents can only use the listed qa_* tools.');
   }
   if (!agentAccessEnabled(db)) {
-    audit(db, name, null, 'denied', 'agent_access_disabled');
+    audit(db, name, null, 'denied', 'agent_access_disabled', identity);
     throw new HttpError(403, 'agent_access_disabled', 'Agent access is turned off. A person can turn it on in Settings.');
+  }
+  if (identity && !identity.def.tools.includes(name)) {
+    audit(db, name, identity.projectId, 'denied', 'tool_not_allowed', identity);
+    throw new HttpError(403, 'tool_not_allowed', `${identity.agentName} (${identity.role}) is not allowed to use ${name}.`);
   }
   let projectId: string | null = null;
   try {
@@ -327,12 +375,13 @@ export function callAgentTool(db: DB, name: string, rawArgs: unknown): unknown {
     const args = parsed.data as Record<string, unknown>;
     const needsProject = tool.project !== false;
     if (needsProject) projectId = projectIdOf(db, s<string>(args.project));
-    const out = tool.run({ db, projectId: projectId ?? '' }, args);
-    audit(db, name, projectId, 'ok');
+    if (identity && projectId && projectId !== identity.projectId) throw new HttpError(403, 'wrong_project', 'This agent was launched for a different project.');
+    const out = tool.run({ db, projectId: projectId ?? '', identity }, args);
+    audit(db, name, projectId, 'ok', '', identity);
     return redactObject(out);
   } catch (err) {
     const code = err instanceof HttpError ? err.code : 'error';
-    audit(db, name, projectId, err instanceof HttpError && err.status === 403 ? 'denied' : 'error', code);
+    audit(db, name, projectId, err instanceof HttpError && err.status === 403 ? 'denied' : 'error', code, identity);
     throw err;
   }
 }

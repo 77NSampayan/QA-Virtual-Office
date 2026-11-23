@@ -108,6 +108,7 @@ export function AgentAccess() {
             <thead>
               <tr>
                 <th>When</th>
+                <th>Agent</th>
                 <th>Tool</th>
                 <th>Project</th>
                 <th>Outcome</th>
@@ -117,6 +118,7 @@ export function AgentAccess() {
               {s.activity.map((a, i) => (
                 <tr key={`${a.at}-${i}`} style={{ cursor: 'default' }}>
                   <td className="muted">{when(a.at)}</td>
+                  <td>{a.agent ?? <span className="muted">shared token</span>}</td>
                   <td className="mono">{a.tool}</td>
                   <td>{a.project ?? '—'}</td>
                   <td style={{ color: a.outcome === 'ok' ? '#4be37c' : a.outcome === 'denied' ? '#ff9f43' : '#ff5d6c' }}>

@@ -19,6 +19,20 @@ describe('MCP protocol', () => {
     expect(unknown!.result).toMatchObject({ protocolVersion: '2025-06-18' });
   });
 
+  it('a launched agent gets its playbook as the instructions; the shared token or a failure keeps the generic ones', async () => {
+    const init = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } };
+    const named = await call(init, fake({ whoami: async () => ({ ok: true, status: 200, body: { attributed: true, instructions: 'You are Quinn, the Test Case Writer.' } }) }));
+    expect((named!.result as { instructions: string }).instructions).toBe('You are Quinn, the Test Case Writer.');
+    const shared = await call(init, fake({ whoami: async () => ({ ok: true, status: 200, body: { attributed: false } }) }));
+    expect((shared!.result as { instructions: string }).instructions).toContain('never approve');
+    const down = await call(init, fake({ whoami: async () => ({ ok: false, status: 0, body: { error: 'server_unreachable' } }) }));
+    expect((down!.result as { instructions: string }).instructions).toContain('never approve');
+    const boom = await call(init, fake({ whoami: async () => { throw new Error('x'); } }));
+    expect((boom!.result as { instructions: string }).instructions).toContain('never approve');
+    const huge = await call(init, fake({ whoami: async () => ({ ok: true, status: 200, body: { attributed: true, instructions: 'x'.repeat(20_000) } }) }));
+    expect((huge!.result as { instructions: string }).instructions.length).toBeLessThanOrEqual(8_000);
+  });
+
   it('notifications get no response; ping works; unknown methods are errors', async () => {
     expect(await call({ jsonrpc: '2.0', method: 'notifications/initialized' })).toBeNull();
     expect((await call({ jsonrpc: '2.0', id: 3, method: 'ping' }))!.result).toEqual({});

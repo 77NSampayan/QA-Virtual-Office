@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { PRIORITIES, TEST_CASE_STATUSES, TEST_CASE_STATUS_LABEL, TEST_TYPES, TEST_TYPE_LABEL, nextStatuses, type TestCaseStatus } from '@qavo/shared';
-import { api, ApiDetailError, type QaRequirement, type QaTestCase, type QaTestCaseDetail, type QaTestCaseInput } from '../../api.ts';
+import { REVIEW_VERDICT_LABEL, PRIORITIES, TEST_CASE_STATUSES, TEST_CASE_STATUS_LABEL, TEST_TYPES, TEST_TYPE_LABEL, nextStatuses, type TestCaseStatus } from '@qavo/shared';
+import { api, ApiDetailError, type Playbook, type QaRequirement, type QaTestCase, type QaTestCaseDetail, type QaTestCaseImportResult, type QaTestCaseInput } from '../../api.ts';
 import { useLive } from '../../live.tsx';
 import { agoIso, useNow } from '../../ui.tsx';
 import { errText, MsgLine } from './Requirements.tsx';
@@ -144,11 +144,13 @@ function Detail({ id, requirements, onChanged }: { id: string; requirements: QaR
   const { qaVersion, projects } = useLive();
   const now = useNow();
   const [d, setD] = useState<QaTestCaseDetail | null>(null);
+  const [writers, setWriters] = useState<Playbook[]>([]);
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const load = useCallback(() => void api.testCase(id).then(setD).catch(() => setD(null)), [id]);
   useEffect(load, [load, qaVersion]);
+  useEffect(() => void api.playbooks().then((p) => setWriters(p.filter((x) => x.kind === 'writer' && x.available))).catch(() => setWriters([])), [qaVersion]);
   void projects;
   if (!d) return <p className="muted">Loading…</p>;
   const act = async (fn: () => Promise<unknown>, ok: string) => {
@@ -196,6 +198,31 @@ function Detail({ id, requirements, onChanged }: { id: string; requirements: QaR
         </span>
       </div>
       {d.status === 'rejected' && d.rejectionNote && <p className="error">Rejected: {d.rejectionNote}</p>}
+      {d.authoredBy === 'agent' && !d.draftedBy && d.status === 'draft' && !d.archived && writers.length > 0 && (
+        <p className="hint" data-tc-handover>
+          Written by an agent before agents had names, so no agent may edit it.{' '}
+          {writers.map((w) => (
+            <button key={w.id} className="ghost" data-handover={w.id} onClick={() => void act(() => api.handToAgent(id, w.id), `Handed to ${w.agentName}.`)}>
+              Hand to {w.agentName}
+            </button>
+          ))}
+        </p>
+      )}
+      {d.review && (
+        <div className="plan" data-tc-review-detail={d.review.current ? d.review.verdict : 'outdated'} style={{ borderColor: 'var(--line)', background: 'transparent' }}>
+          <p style={{ margin: 0 }}>
+            <strong>{d.review.by}</strong> (reviewer agent) <strong style={{ color: d.review.verdict === 'recommend_approve' ? '#4be37c' : '#ff9f43' }}>{REVIEW_VERDICT_LABEL[d.review.verdict]}</strong>, {agoIso(d.review.at, now)}.
+            {!d.review.current && <span className="muted"> This review is outdated: the test case was edited afterwards.</span>}
+          </p>
+          {d.review.notes && <p style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0' }}>{d.review.notes}</p>}
+          {d.replies.map((r, i) => (
+            <p key={i} data-tc-reply style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0', paddingLeft: 10, borderLeft: '2px solid var(--line)' }}>
+              <strong>{r.by}</strong> (writer agent) replied, {agoIso(r.at, now)}: {r.note}
+            </p>
+          ))}
+          <p className="hint" style={{ margin: '6px 0 0' }}>A recommendation only. You decide whether to approve it.</p>
+        </div>
+      )}
       <dl className="fields">
         {d.scenario && (<><dt>Scenario</dt><dd>{d.scenario}</dd></>)}
         {d.description && (<><dt>Description</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{d.description}</dd></>)}
@@ -256,13 +283,128 @@ function Detail({ id, requirements, onChanged }: { id: string; requirements: QaR
   );
 }
 
+/** Import test cases from a Markdown table or cells pasted from a spreadsheet. Always lands as DRAFTS; shows a preview first. */
+function ImportTestCases({ projectId, onDone }: { projectId: string; onDone: () => void }) {
+  const [text, setText] = useState('');
+  const [preview, setPreview] = useState<QaTestCaseImportResult | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const run = async (dryRun: boolean) => {
+    try {
+      const r = await api.importTestCases(projectId, { text, dryRun });
+      if (dryRun) {
+        setPreview(r);
+        setMsg(null);
+      } else {
+        setPreview(null);
+        setText('');
+        setMsg({ ok: true, text: `${r.created} test case(s) imported as drafts${r.skippedExisting.length ? `; ${r.skippedExisting.length} already existed and were left unchanged` : ''}. Review and approve them yourself.` });
+        onDone();
+      }
+    } catch (err) {
+      setPreview(null);
+      setMsg({ ok: false, text: errText(err) });
+    }
+  };
+  const readFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 400_000) return setMsg({ ok: false, text: 'That file is larger than 400 KB: split it into smaller parts.' });
+    setText(await file.text());
+    setPreview(null);
+    setMsg(null);
+  };
+  return (
+    <div className="project-form" data-tc-import>
+      <p className="hint">
+        Paste a Markdown table, or copy the cells from your spreadsheet (first row = headers). Needed: <strong>Test Case Description</strong>. Mapped: Module, Sub Module, Test Case ID, Test Case Type, Pre-Condition, Steps, Expected Result, Test Data, Assigned Tester,
+        Priority, Requirement Refs, Remarks. Result columns (Actual Result, Status, Test Execution Status, Defect ID, evidence, automation…) are <strong>never imported</strong>: a result only counts when you record it. Imported cases are{' '}
+        <strong>drafts</strong>; you approve them. Re-importing skips Test Case IDs that already exist.
+      </p>
+      <textarea
+        rows={7}
+        value={text}
+        data-tc-import-text
+        onChange={(e) => (setText(e.target.value), setPreview(null))}
+        placeholder={'| Module | Test Case ID | Test Case Description | Expected Result |\n|---|---|---|---|\n| Auth | TC_001 | Sign in with valid credentials | Dashboard is shown |'}
+        maxLength={400000}
+      />
+      <div className="row">
+        <label>
+          Or load a file (.md, .txt, .tsv)
+          <input type="file" accept=".md,.markdown,.txt,.tsv,text/*" data-tc-import-file onChange={(e) => void readFile(e.target.files?.[0])} />
+        </label>
+        <button className="ghost" disabled={!text.trim()} data-tc-import-preview-btn onClick={() => void run(true)}>
+          Preview
+        </button>
+        <button disabled={!preview || preview.wouldCreate.length === 0} data-tc-import-run onClick={() => void run(false)}>
+          Import {preview ? preview.wouldCreate.length : ''} test case(s) as drafts
+        </button>
+      </div>
+      {preview && (
+        <div className="plan" data-tc-import-result>
+          <p data-tc-import-summary>
+            <strong>{preview.wouldCreate.length}</strong> to import
+            {preview.skippedExisting.length > 0 && <>, {preview.skippedExisting.length} already exist (skipped)</>}
+            {preview.duplicatesInText.length > 0 && <>, {preview.duplicatesInText.length} repeated in the text (first one kept)</>}
+            {preview.rowErrors.length > 0 && <>, {preview.rowErrors.length} unreadable</>}.
+            {preview.rowsWithoutId > 0 && <> {preview.rowsWithoutId} row(s) have no Test Case ID, so importing them again would add them again.</>}
+            {preview.truncated && <> Only the first 1000 rows were read.</>}
+          </p>
+          <p className="muted" data-tc-import-columns>
+            Read: {preview.columns.recognised.join(', ') || '—'}.
+            {preview.columns.ignored.length > 0 && <> Not imported (results/automation): {preview.columns.ignored.join(', ')}.</>}
+            {preview.columns.unknown.length > 0 && <> Not recognised: {preview.columns.unknown.join(', ')}.</>}
+          </p>
+          {(preview.rowErrors.length > 0 || preview.warnings.length > 0) && (
+            <ul data-tc-import-problems>
+              {preview.rowErrors.map((e) => (
+                <li key={'e' + e.row} className="error">
+                  Row {e.row}: {e.reason}
+                </li>
+              ))}
+              {preview.warnings.slice(0, 30).map((w, i) => (
+                <li key={'w' + i}>
+                  Row {w.row}: {w.text}
+                </li>
+              ))}
+              {preview.warnings.length > 30 && <li className="muted">…and {preview.warnings.length - 30} more notes</li>}
+            </ul>
+          )}
+          <div className="scroll-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Row</th>
+                  <th>Test Case ID</th>
+                  <th>Title</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.wouldCreate.slice(0, 50).map((w) => (
+                  <tr key={w.row} style={{ cursor: 'default' }}>
+                    <td>{w.row}</td>
+                    <td className="mono">{w.externalId || '—'}</td>
+                    <td>{w.title}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {preview.wouldCreate.length > 50 && <p className="muted">Showing the first 50 of {preview.wouldCreate.length}.</p>}
+        </div>
+      )}
+      <MsgLine msg={msg} />
+    </div>
+  );
+}
+
 export function TestCasesPanel({ projectId }: { projectId: string }) {
   const { qaVersion } = useLive();
   const [items, setItems] = useState<QaTestCase[]>([]);
   const [reqs, setReqs] = useState<QaRequirement[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [filters, setFilters] = useState({ status: '', testType: '', priority: '', requirementId: '', authoredBy: '', q: '', includeArchived: '' });
+  const [importing, setImporting] = useState(false);
+  const [filters, setFilters] = useState({ status: '', testType: '', priority: '', requirementId: '', authoredBy: '', review: '', q: '', includeArchived: '' });
   const load = useCallback(() => {
     void api.testCases(projectId, filters).then(setItems).catch(() => setItems([]));
     void api.requirements(projectId).then(setReqs).catch(() => setReqs([]));
@@ -274,8 +416,11 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
   return (
     <div data-panel="test-cases">
       <div className="row toolbar">
-        <button className={creating ? 'tab on' : 'tab'} onClick={() => setCreating(!creating)}>
+        <button className={creating ? 'tab on' : 'tab'} onClick={() => (setCreating(!creating), setImporting(false))}>
           New test case
+        </button>
+        <button className={importing ? 'tab on' : 'tab'} data-tc-import-toggle onClick={() => (setImporting(!importing), setCreating(false))}>
+          Import from table
         </button>
         <input placeholder="Search…" value={filters.q} onChange={(e) => set('q', e.target.value)} style={{ width: 160 }} />
         <select value={filters.status} onChange={(e) => set('status', e.target.value)} aria-label="Status filter">
@@ -313,6 +458,13 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
           <option value="human">Written by me</option>
           <option value="agent">Agent drafts</option>
         </select>
+        <select value={filters.review} onChange={(e) => set('review', e.target.value)} aria-label="Review filter">
+          <option value="">Any review</option>
+          <option value="recommend_approve">Reviewer recommends approval</option>
+          <option value="changes_requested">Reviewer requests changes</option>
+          <option value="outdated">Review outdated</option>
+          <option value="unreviewed">Not reviewed</option>
+        </select>
         <label className="check" style={{ margin: 0 }}>
           <input type="checkbox" checked={filters.includeArchived === 'true'} onChange={(e) => set('includeArchived', e.target.checked ? 'true' : '')} />
           Archived
@@ -333,6 +485,11 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
           />
         </section>
       )}
+      {importing && (
+        <section className="card">
+          <ImportTestCases projectId={projectId} onDone={load} />
+        </section>
+      )}
       <section className="card">
         <div className="scroll-x">
           <table>
@@ -351,10 +508,27 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
               {items.map((t) => (
                 <Fragment key={t.id}>
                   <tr className={open === t.id ? 'selected' : ''} data-tc={t.code} onClick={() => setOpen(open === t.id ? null : t.id)}>
-                    <td className="mono">{t.code}</td>
+                    <td className="mono">
+                      {t.code}
+                      {t.externalId && (
+                        <div className="muted" data-tc-external title="Test Case ID from your sheet">
+                          {t.externalId}
+                        </div>
+                      )}
+                    </td>
                     <td>
                       {t.title}
-                      {t.authoredBy === 'agent' && <span className="pill soon"> agent</span>}
+                      {t.authoredBy === 'agent' && (
+                        <span className="pill soon" data-tc-drafted-by={t.draftedBy || 'agent'}>
+                          {' '}
+                          {t.draftedBy ? `drafted by ${t.draftedBy}` : 'agent'}
+                        </span>
+                      )}
+                      {t.review && (
+                        <span className="pill" style={{ color: !t.review.current ? '#9aa3b5' : t.review.verdict === 'recommend_approve' ? '#4be37c' : '#ff9f43', marginLeft: 6 }} data-tc-review={t.review.current ? t.review.verdict : 'outdated'} title={t.review.current ? 'A reviewer agent’s recommendation. Only you can approve.' : 'The test case was edited after this review.'}>
+                          {t.review.current ? `${t.review.by} ${REVIEW_VERDICT_LABEL[t.review.verdict]}` : `review by ${t.review.by} is outdated`}
+                        </span>
+                      )}
                       {t.archived && <span className="muted"> (archived)</span>}
                     </td>
                     <td>{TEST_TYPE_LABEL[t.testType as keyof typeof TEST_TYPE_LABEL] ?? t.testType}</td>
