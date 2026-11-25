@@ -211,6 +211,19 @@ export interface Playbook {
   checklist: string[];
   reviewedBy: string | null;
 }
+export interface DetectedFramework {
+  id: string;
+  label: string;
+  language: string;
+  exportHint: string;
+  confidence: 'config' | 'dependency' | 'files';
+  evidence: Array<{ kind: 'config_file' | 'dependency' | 'test_files'; file: string; where: string; detail: string }>;
+}
+export interface FrameworkDetection {
+  frameworks: DetectedFramework[];
+  scanned: { folders: number; files: number; manifestsRead: number; truncated: boolean };
+  notes: string[];
+}
 export interface AutomationCounts {
   total: number;
   passed: number;
@@ -686,6 +699,7 @@ export const api = {
   resetPlaybook: (id: string) => call<Playbook>('POST', `/api/playbooks/${id}/reset`),
   retireRobot: (id: string) => call<{ id: string; retired: true }>('POST', `/api/robots/${id}/retire`),
   handToAgent: (id: string, playbookId: string) => call<{ code: string; draftedBy: string }>('POST', `/api/test-cases/${id}/hand-to-agent`, { playbookId }),
+  detectFrameworks: (pid: string) => call<FrameworkDetection>('POST', `/api/projects/${pid}/automation/detect`, {}),
   automationRuns: (pid: string) => call<AutomationRun[]>('GET', `/api/projects/${pid}/automation/runs`),
   automationRun: (id: string) => call<AutomationRunDetail>('GET', `/api/automation/runs/${id}`),
   importAutomation: (pid: string, b: { text: string; name?: string; environment?: string; dryRun?: boolean }) => call<AutomationImportResult>('POST', `/api/projects/${pid}/automation/import`, b),

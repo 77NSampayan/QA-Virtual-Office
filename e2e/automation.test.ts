@@ -38,6 +38,32 @@ afterAll(async () => {
 });
 
 describe('Test Automation page', () => {
+  it('scans the project folder for test frameworks: names and versions only, nothing stored', async () => {
+    const dir = path.join(env.root, 'Shop');
+    fs.writeFileSync(path.join(dir, 'playwright.config.ts'), 'export default { token: "do-not-read-me" }');
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ devDependencies: { '@playwright/test': '^1.48.0' } }));
+    fs.writeFileSync(path.join(dir, 'pytest.ini'), '');
+    await page.evaluate(() => (location.hash = '#/automation'));
+    await page.waitForSelector('[data-auto-detect-btn]');
+    expect(await page.locator('[data-auto-detect-result]').count()).toBe(0); // never scans on its own
+    await page.click('[data-auto-detect-btn]');
+    await page.waitForSelector('[data-framework="playwright"]');
+    expect(await page.getAttribute('[data-framework="playwright"]', 'data-framework-confidence')).toBe('config');
+    const text = (await page.textContent('[data-auto-detect-result]')) ?? '';
+    expect(text).toMatch(/playwright\.config\.ts/);
+    expect(text).toMatch(/\^1\.48\.0/);
+    expect(text).toMatch(/junit reporter/i);
+    expect(text).not.toContain('do-not-read-me');
+    expect(text).not.toContain(path.basename(env.root));
+    await page.waitForSelector('[data-framework="pytest"]');
+    if (process.env.QAVO_E2E_SHOTS) await page.screenshot({ path: path.join(process.env.QAVO_E2E_SHOTS, 'automation-detect.png') });
+    // a person only: agent token, hook token and no cookie are refused
+    const attempt = (headers: Record<string, string>) => env.app.inject({ method: 'POST', url: `/api/projects/${pid}/automation/detect`, headers: { ...headers, 'content-type': 'application/json' }, payload: '{}' });
+    expect((await attempt({ host: env.host, 'x-qavo-agent-token': readAgentToken(env.paths) })).statusCode).toBeGreaterThanOrEqual(400);
+    expect((await attempt({ host: env.host, 'x-qavo-token': env.token })).statusCode).toBeGreaterThanOrEqual(400);
+    expect((await attempt({ ...uiHeaders(env) })).statusCode).toBe(401);
+  });
+
   it('previews a JUnit file with the pass-rate formula, imports it, and shows the run', async () => {
     await page.evaluate(() => (location.hash = '#/automation'));
     await page.waitForSelector('[data-page="automation"] [data-auto-import]');

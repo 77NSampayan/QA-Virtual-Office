@@ -23,7 +23,9 @@ import {
   type Ratio,
 } from '@qavo/shared';
 import type { DB } from './db/index.ts';
-import { HttpError, newId } from './store.ts';
+import fs from 'node:fs';
+import { detectFrameworks, type DetectionResult } from './frameworkDetect.ts';
+import { getProjectPath, HttpError, newId } from './store.ts';
 
 type Row = Record<string, unknown>;
 const nowIso = () => new Date().toISOString();
@@ -219,4 +221,23 @@ export function deleteRun(db: DB, id: string, actor: Actor): { deleted: true } {
   if (!db.prepare('SELECT 1 FROM automation_runs WHERE id = ?').get(id)) throw new HttpError(404, 'automation_run_not_found');
   db.prepare('DELETE FROM automation_runs WHERE id = ?').run(id);
   return { deleted: true };
+}
+
+/**
+ * Scan the project's folder for test frameworks (names and declared versions only). Person-only, on demand, read-only.
+ * Nothing is stored: the answer is shown and forgotten, so it can never be stale or leak later.
+ */
+export function detectProjectFrameworks(db: DB, projectId: string, actor: Actor): DetectionResult {
+  needHuman(actor);
+  requireProject(db, projectId);
+  const p = getProjectPath(db, projectId);
+  const root = p.pathCanonical ?? p.pathEntered;
+  let ok = false;
+  try {
+    ok = fs.statSync(root).isDirectory();
+  } catch {
+    ok = false;
+  }
+  if (!ok) throw new HttpError(409, 'project_folder_missing', 'The project folder cannot be found on this computer, so it cannot be scanned');
+  return detectFrameworks(root);
 }

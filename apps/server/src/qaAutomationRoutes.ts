@@ -17,6 +17,8 @@ export function registerQaAutomationRoutes(app: FastifyInstance, deps: { db: DB;
     if (!r.dryRun) changed(req.params.pid);
     return reply.code(r.dryRun ? 200 : 201).send(r);
   });
+  // read-only scan of the registered project's folder for framework files (person-only, on demand, nothing stored)
+  app.post<{ Params: { pid: string } }>('/api/projects/:pid/automation/detect', async (req) => au.detectProjectFrameworks(db, req.params.pid, human));
   app.get<{ Params: { id: string } }>('/api/automation/runs/:id', async (req) => au.getRun(db, req.params.id));
   app.delete<{ Params: { id: string } }>('/api/automation/runs/:id', async (req) => {
     const pid = au.projectOfRun(db, req.params.id);

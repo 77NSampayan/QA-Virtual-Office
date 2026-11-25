@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AUTOMATION_CLASSIFICATIONS, AUTOMATION_CLASSIFICATION_LABEL, type AutomationClassification } from '@qavo/shared';
-import { api, type AutomationImportResult, type AutomationResult, type AutomationRun, type AutomationRunDetail } from '../api.ts';
+import { api, type AutomationImportResult, type FrameworkDetection, type AutomationResult, type AutomationRun, type AutomationRunDetail } from '../api.ts';
 import { useLive } from '../live.tsx';
 import { Drawer } from '../ui.tsx';
 import { MsgLine, useMsg } from './qa/Requirements.tsx';
@@ -18,6 +18,70 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const rate = (r: { numerator: number; denominator: number; percent: number | null }) => (r.percent === null ? 'No data (nothing was counted)' : `${r.percent}% (${r.numerator} of ${r.denominator})`);
 const secs = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
 const STATUS_CLASS: Record<AutomationResult['status'], string> = { passed: 'ok-text', failed: 'warn-text', error: 'warn-text', skipped: 'muted' };
+
+const CONFIDENCE_LABEL = { config: 'Config file found', dependency: 'Declared as a dependency', files: 'Matching test files only' } as const;
+
+/** Read-only scan of the registered project's folder: which test frameworks it uses. Names and versions only; nothing is stored. */
+function DetectPanel({ projectId }: { projectId: string }) {
+  const [res, setRes] = useState<FrameworkDetection | null>(null);
+  const [busy, setBusy] = useState(false);
+  const m = useMsg();
+  useEffect(() => (setRes(null), m.clear()), [projectId]);
+  return (
+    <section className="card project-form" data-auto-detect>
+      <h3>Test frameworks in this project</h3>
+      <p className="hint">
+        Press <strong>Scan project</strong> to look in the project folder (up to three folders deep) for test framework config files and dependency lists: Playwright, Cypress, Selenium, WebdriverIO, TestCafe, Jest, Vitest, Mocha, pytest, Robot Framework, JUnit and TestNG. It
+        reads <strong>file names and a few small dependency lists</strong> (package.json, requirements, pyproject.toml, pom.xml, build.gradle). It never reads your source code or test files, never changes anything and keeps nothing: the answer is shown here and forgotten.
+      </p>
+      <div className="row">
+        <button
+          disabled={busy}
+          data-auto-detect-btn
+          onClick={() => {
+            setBusy(true);
+            m.clear();
+            void api
+              .detectFrameworks(projectId)
+              .then(setRes)
+              .catch((e) => (setRes(null), m.fail(e)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {busy ? 'Scanning…' : res ? 'Scan again' : 'Scan project'}
+        </button>
+      </div>
+      <MsgLine msg={m.msg} />
+      {res && (
+        <div data-auto-detect-result>
+          <p className="muted" data-auto-detect-scanned>
+            Looked at {res.scanned.files} file name(s) in {res.scanned.folders} folder(s); read {res.scanned.manifestsRead} dependency list(s).
+          </p>
+          {res.notes.map((n) => (
+            <p key={n} className="hint">
+              {n}
+            </p>
+          ))}
+          {res.frameworks.map((f) => (
+            <div key={f.id} className="plan quiet" data-framework={f.id} data-framework-confidence={f.confidence}>
+              <p>
+                <strong>{f.label}</strong> <span className="muted">· {f.language}</span> <span className="pill">{CONFIDENCE_LABEL[f.confidence]}</span>
+              </p>
+              <ul>
+                {f.evidence.map((e, i) => (
+                  <li key={i}>
+                    {e.kind === 'config_file' ? 'Config file' : e.kind === 'dependency' ? 'Dependency in' : 'Found'} <code>{e.file}</code> ({e.where}){e.detail && <> · {e.detail}</>}
+                  </li>
+                ))}
+              </ul>
+              <p className="muted">To import its results: {f.exportHint}.</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function ImportPanel({ projectId, onDone }: { projectId: string; onDone: () => void }) {
   const [text, setText] = useState('');
@@ -262,6 +326,7 @@ export function Automation() {
               </select>
             </label>
           </div>
+          <DetectPanel projectId={current.id} />
           <ImportPanel projectId={current.id} onDone={load} />
           <section className="card">
             <h3>Imported runs</h3>

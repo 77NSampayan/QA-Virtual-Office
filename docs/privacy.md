@@ -148,3 +148,7 @@ If you turn on the permission bridge, a request shows a short redacted descripti
 ## Automation results (Pass 3, A1)
 
 A person imports a JUnit XML file. Kept: suite, class and test name, status, duration and the first line of a failure message, all passed through the redaction engine and length-capped. Never kept: stack traces, system-out/system-err, screenshots, attachments, file paths or the file itself (only a hash, to refuse a duplicate import). DOCTYPE and entity declarations are ignored, never expanded. Nothing is read from project folders and nothing is sent anywhere.
+
+### Framework scan (Pass 3, A2)
+
+Only when a person presses Scan project. Reads file names (up to three folders deep, no links, no node_modules, virtualenvs or hidden folders) and, from at most 40 small dependency lists (package.json, requirements, pyproject.toml, pom.xml, build.gradle), only dependency names and declared versions. Never reads source, tests, .env files or anything else. The result (framework, evidence kind, file base name, root or subfolder, version) is shown once and not stored or logged.
