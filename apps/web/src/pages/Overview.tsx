@@ -34,9 +34,30 @@ export function Overview() {
   const byStatus = ALL_STATUSES.filter((st) => st !== 'disconnected').map((st) => ({ st, n: active.filter((s) => s.status === st).length }));
   const maxN = Math.max(1, ...byStatus.map((b) => b.n));
 
+  const WORKING = ['analyzing', 'writing_tests', 'executing_tests', 'debugging'];
+  const live = [
+    { id: 'active', label: 'Active', n: active.length, tip: 'Claude Code sessions that have not ended and sent an event in the last 30 minutes.' },
+    { id: 'working', label: 'Working', n: active.filter((s) => WORKING.includes(s.status)).length, tip: 'Active sessions that are reading, writing, running tests or debugging.' },
+    { id: 'waiting', label: 'Waiting for you', n: active.filter((s) => s.status === 'awaiting_permission' || s.status === 'awaiting_input').length, tip: 'Active sessions that need a permission answer or your input.', warn: true },
+    { id: 'idle', label: 'Idle', n: active.filter((s) => s.status === 'idle' || s.status === 'completed').length, tip: 'Active sessions that are idle or have finished their turn.' },
+    { id: 'failed', label: 'Failed (24 h)', n: sessions.filter((s) => s.status === 'failed' && now - s.lastEventAt <= 24 * 3600_000).length, tip: 'Sessions whose last status is failed, seen in the last 24 hours.', bad: true },
+  ];
+
   return (
     <div className="page" data-page="overview">
-      <h2>QA Office Overview</h2>
+      <div className="page-head">
+        <h2>QA Office Overview</h2>
+        <ul className="live-strip" aria-label="Live sessions" data-live-strip>
+          {live.map((c) => (
+            <li key={c.id} className={`live-chip ${c.warn && c.n > 0 ? 'warn' : ''} ${c.bad && c.n > 0 ? 'bad' : ''}`} title={c.tip} data-live={c.id}>
+              <strong>{c.n}</strong> {c.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <PermissionPanel />
+      <OfficeSwitcher robots={robots} sessions={sessions} now={now} />
+      <h3 className="section-title">QA summary</h3>
       <div className="kpis">
         <Kpi id="projects" label="Registered projects" value={projects.filter((p) => !p.archived).length} how="Count of registered, non-archived projects." />
         <Kpi id="active-agents" label="Active QA agents" value={active.length} how="Claude Code sessions that have not ended and sent an event in the last 30 minutes." />
@@ -86,8 +107,6 @@ export function Overview() {
         )}
       </section>
 
-      <PermissionPanel />
-      <OfficeSwitcher robots={robots} sessions={sessions} now={now} />
     </div>
   );
 }

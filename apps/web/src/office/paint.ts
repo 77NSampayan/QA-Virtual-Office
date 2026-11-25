@@ -14,6 +14,7 @@ import { renderStation, STATION_H, STATION_W } from '../sprites/station.ts';
 import { screenToWorld, worldToScreen, type Camera, type View } from './camera.ts';
 import { TILE, tileAt, type OfficeMap, type RoomInfo, type TileKind } from './map.ts';
 import type { Light } from './light.ts';
+import { paintRoomDecor } from './paintRooms.ts';
 import { drawHat, drawNight, drawShafts, drawThemeAnimated, drawWindows, paintThemeStatic } from './paintAtmosphere.ts';
 import type { Actor, OfficeScene } from './scene.ts';
 import type { Theme } from './theme.ts';
@@ -161,9 +162,8 @@ export function paintStatic(map: OfficeMap, theme: Theme = 'none'): HTMLCanvasEl
 
   // ---- windows on the face of the outer north wall of north rooms
   for (const r of map.rooms) {
-    if (r.side !== 'north') continue;
     const col = wallColors(r.tint);
-    for (let x = r.x0 + 2; x < r.x0 + r.w - 2; x += 3) {
+    for (const x of r.windows) {
       // the recess only: the sky behind it changes with the time of day and is drawn per frame
       ctx.fillStyle = col.dark;
       ctx.fillRect(x * TILE + 1, 5, 2 * TILE - 2, 8);
@@ -244,8 +244,8 @@ export function paintStatic(map: OfficeMap, theme: Theme = 'none'): HTMLCanvasEl
         ctx.fillStyle = '#4be37c';
         ctx.fillRect(px + 5, py + 1, 6, 5);
         break;
-      case 'sign':
-        break;
+      default:
+        paintRoomDecor(ctx, d);
     }
   }
 
@@ -428,6 +428,12 @@ export function drawFrame(ctx: CanvasRenderingContext2D, scene: OfficeScene, sta
   drawWindows(ctx, scene.map, o.light, o.theme);
   drawShafts(ctx, scene.map, o.light);
   for (const d of drawables(scene, o.frame, o.theme)) d.draw(ctx);
+  if (scene.actors.size > 0) {
+    // rooms nobody works in recede, so the occupied ones read first (nothing is added, moved or hidden)
+    const occ = scene.occupancy();
+    ctx.fillStyle = 'rgba(8, 11, 20, 0.34)';
+    for (const r of scene.map.rooms) if (!occ.rooms.has(r.key)) ctx.fillRect((r.x0 + 1) * TILE, (r.y0 + 1) * TILE, (r.w - 2) * TILE, (r.h - 2) * TILE);
+  }
   drawNight(ctx, scene, o.light);
   drawThemeAnimated(ctx, scene, o.theme);
   drawEffects(ctx, scene);
@@ -444,7 +450,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, scene: OfficeScene, sta
     ctx.fillStyle = color;
     ctx.fillText(text, p.x, p.y);
   };
-  for (const r of scene.map.rooms) sign(r.vacant ? 'Vacant room' : o.roomLabel(r.key), (r.x0 + 1) * TILE + 3, (r.y0 + 1) * TILE + 7, r.vacant ? '#7b87a8' : '#e8eef9');
+  for (const r of scene.map.rooms) sign(o.roomLabel(r.key), (r.x0 + 1) * TILE + 3, (r.y0 + 1) * TILE + 7, r.vacant ? '#7b87a8' : '#e8eef9');
   if (o.deskLabel) {
     for (const r of scene.map.rooms) {
       for (const d of r.desks) {
@@ -459,9 +465,9 @@ export function drawFrame(ctx: CanvasRenderingContext2D, scene: OfficeScene, sta
       }
     }
   }
-  sign('Lobby', 3 * TILE, 1.5 * TILE + 4, '#e8eef9');
-  sign('Lounge & kitchen', (scene.map.lounge.x0 + 2) * TILE, 0.5 * TILE + 8, '#bff3d0');
-  sign('Hallway', (scene.map.lounge.x0 - 7) * TILE, (scene.map.hallway.y0 + 1.5) * TILE, '#5b6788');
+  sign('Lobby', 1.2 * TILE, 1.5 * TILE + 4, '#e8eef9');
+  sign('Lounge & kitchen', (scene.map.lounge.x0 + 1) * TILE + 3, (scene.map.lounge.y0 + 1) * TILE + 7, '#bff3d0');
+  sign('Hallway', (scene.map.w - 9) * TILE, (scene.map.hallway.y0 + 1) * TILE, '#5b6788');
 
   const chatting = scene.chatting();
   const pulse = (Math.sin(scene.time * 7) + 1) / 2;

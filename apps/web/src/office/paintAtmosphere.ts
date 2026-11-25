@@ -31,8 +31,7 @@ function faceTiles(map: OfficeMap): Array<{ x: number; y: number }> {
 export function drawWindows(ctx: CanvasRenderingContext2D, map: OfficeMap, light: Light, theme: Theme): void {
   let first = true;
   for (const r of map.rooms) {
-    if (r.side !== 'north') continue;
-    for (let x = r.x0 + 2; x < r.x0 + r.w - 2; x += 3) {
+    for (const x of r.windows) {
       const px = x * TILE + 3;
       ctx.fillStyle = light.sky[0];
       ctx.fillRect(px, 6, 26, 3);
@@ -72,8 +71,7 @@ export function drawShafts(ctx: CanvasRenderingContext2D, map: OfficeMap, light:
   const a = 0.1 * (light.dayness - 0.55) / 0.45;
   ctx.fillStyle = rgba(255, 244, 196, a);
   for (const r of map.rooms) {
-    if (r.side !== 'north') continue;
-    for (let x = r.x0 + 2; x < r.x0 + r.w - 2; x += 3) {
+    for (const x of r.windows) {
       const px = x * TILE + 3;
       ctx.beginPath();
       ctx.moveTo(px, TILE);
@@ -115,7 +113,7 @@ export function drawNight(ctx: CanvasRenderingContext2D, scene: OfficeScene, lig
     const n = m ? map.lounge.nooks[Number(m[1])] : undefined;
     if (n && (n.kind === 'tv' || n.kind === 'arcade')) glow(ctx, n.nook.x * TILE + 24, n.nook.y * TILE + 4, 34, n.kind === 'tv' ? [120, 190, 255] : [200, 150, 255], 0.34 * k);
   }
-  glow(ctx, (map.lounge.x0 + 11) * TILE, (map.h - 6) * TILE, 70, [255, 190, 120], 0.16 * k); // kitchen
+  glow(ctx, (map.lounge.x0 + 7) * TILE, (map.lounge.y0 + map.lounge.h - 3) * TILE, 70, [255, 190, 120], 0.16 * k); // kitchen
   ctx.globalCompositeOperation = 'source-over';
 }
 

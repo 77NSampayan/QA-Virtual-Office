@@ -1,6 +1,7 @@
-import { ALL_STATUSES, ROBOT_TYPES, ROBOT_TYPE_INFO, STATUS_ANIMATION, STATUS_COLOR, STATUS_LABEL } from '@qavo/shared';
+import { ALL_STATUSES, ROBOT_TYPES, ROBOT_TYPE_INFO, STATUS_ANIMATION, STATUS_LABEL } from '@qavo/shared';
 import { NOOK_KINDS, NOOK_LABEL, NOOK_VERB } from '../sprites/nook.ts';
 import { DroneSprite, NookSprite, RobotSprite, StationSprite } from '../sprites/Sprite.tsx';
+import { statusTextColor } from '../statusColor.ts';
 
 /** Reference sheet of every robot type and status animation. Static design reference, NOT live data. */
 export function SpriteGallery() {
@@ -16,7 +17,7 @@ export function SpriteGallery() {
             <figure key={s} data-gallery-status={s}>
               <RobotSprite type="qa_analyst" status={s} palette={palette} scale={5} />
               <figcaption>
-                <strong style={{ color: STATUS_COLOR[s] }}>{STATUS_LABEL[s]}</strong>
+                <strong style={{ color: statusTextColor(s) }}>{STATUS_LABEL[s]}</strong>
                 <span className="muted">{STATUS_ANIMATION[s]}</span>
               </figcaption>
             </figure>

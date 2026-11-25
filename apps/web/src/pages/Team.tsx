@@ -196,7 +196,7 @@ export function Team() {
     void api.agentRuns().then(setRuns).catch(() => setRuns([]));
   }, []);
   useEffect(load, [load, qaVersion]);
-  if (!items) return <div className="page muted">Loading…</div>;
+  if (!items) return <div className="page muted loading" role="status">Loading…</div>;
   const nameOf = (id: string | null) => {
     const p = items.find((x) => x.id === id);
     return p ? `${p.agentName} (${p.role})` : null;

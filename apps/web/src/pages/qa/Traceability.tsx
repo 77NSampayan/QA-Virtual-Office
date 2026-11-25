@@ -26,7 +26,7 @@ export function TraceabilityPanel({ projectId }: { projectId: string }) {
   const [t, setT] = useState<QaTraceability | null>(null);
   const load = useCallback(() => void api.traceability(projectId).then(setT).catch(() => setT(null)), [projectId]);
   useEffect(load, [load, qaVersion]);
-  if (!t) return <p className="muted">Loading…</p>;
+  if (!t) return <p className="muted loading" role="status">Loading…</p>;
   const s = t.summary;
   return (
     <div data-panel="traceability">
@@ -63,7 +63,7 @@ export function TraceabilityPanel({ projectId }: { projectId: string }) {
             </thead>
             <tbody>
               {t.rows.map((r) => (
-                <tr key={r.requirementId} style={{ cursor: 'default' }} data-trace={r.ref} data-covered={r.covered}>
+                <tr key={r.requirementId} className="static" data-trace={r.ref} data-covered={r.covered}>
                   <td>
                     <strong className="mono">{r.ref}</strong> {r.title}
                   </td>
@@ -77,7 +77,7 @@ export function TraceabilityPanel({ projectId }: { projectId: string }) {
                       <span className="muted">—</span>
                     ) : (
                       r.testCases.map((c) => (
-                        <span key={c.id} style={{ marginRight: 10 }} title={`${c.title} (${TEST_CASE_STATUS_LABEL[c.status as TestCaseStatus] ?? c.status})`}>
+                        <span key={c.id} className="gap" title={`${c.title} (${TEST_CASE_STATUS_LABEL[c.status as TestCaseStatus] ?? c.status})`}>
                           {c.code} <StatusBadge status={c.status as TestCaseStatus} />
                         </span>
                       ))
@@ -87,8 +87,8 @@ export function TraceabilityPanel({ projectId }: { projectId: string }) {
                 </tr>
               ))}
               {t.rows.length === 0 && (
-                <tr style={{ cursor: 'default' }}>
-                  <td colSpan={4} className="muted">
+                <tr className="static">
+                  <td colSpan={4} className="muted empty">
                     No requirements yet.
                   </td>
                 </tr>

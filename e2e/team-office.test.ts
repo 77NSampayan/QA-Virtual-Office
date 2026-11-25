@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { makeEnv, uiHeaders, type TestEnv } from '../apps/server/test/helpers.ts';
+import { roomKeyForType } from '../apps/web/src/office/map.ts';
 
 const ROOT = path.resolve(__dirname, '..');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
@@ -86,7 +87,7 @@ describe('the QA Team room', () => {
     await post('s-quinn', 'UserPromptSubmit', { runId });
     const bot = (await api('GET', '/api/robots')).body.find((r: { name: string }) => r.name === 'Quinn').id as string;
     await page.waitForSelector(`[data-office-robots] li[data-robot="${bot}"]`, { state: 'attached' });
-    expect(await page.getAttribute(`[data-office-robots] li[data-robot="${bot}"]`, 'data-room')).toBe('team');
+    expect(await page.getAttribute(`[data-office-robots] li[data-robot="${bot}"]`, 'data-room')).toBe('qa');
     await waitState(1, 'at-desk');
     expect(await page.getAttribute(desk(1), 'data-robot')).toBe(bot);
     expect(await state(2)).toBe('empty'); // Rhea's desk is still empty
@@ -100,7 +101,7 @@ describe('the QA Team room', () => {
     expect(await page.getAttribute(desk(1), 'data-robot')).toBe(bot); // the same desk again
   });
 
-  it('a second agent sits at its own desk, and a plain session goes to its project room, not the team room', async () => {
+  it('a second agent sits at its own desk, and a plain session goes to the room of its robot type, and never takes an agent desk', async () => {
     await api('POST', `/api/projects/${projectId}/launch-claude`, { confirm: true, playbookId: 'case_reviewer' });
     const runId = launches[launches.length - 1]!.run!.runId;
     await post('s-rhea', 'SessionStart', { source: 'startup', runId });
@@ -108,9 +109,11 @@ describe('the QA Team room', () => {
     await waitState(2, 'at-desk');
     await post('s-plain', 'SessionStart', { source: 'startup' });
     await post('s-plain', 'UserPromptSubmit');
-    const plain = (await api('GET', '/api/robots')).body.find((r: { name: string }) => r.name.startsWith('Unit-')).id as string;
+    const plainRobot = (await api('GET', '/api/robots')).body.find((r: { name: string }) => r.name.startsWith('Unit-')) as { id: string; robotType: string };
+    const plain = plainRobot.id;
     await page.waitForSelector(`[data-office-robots] li[data-robot="${plain}"]`, { state: 'attached' });
-    expect(await page.getAttribute(`[data-office-robots] li[data-robot="${plain}"]`, 'data-room')).toBe(projectId);
+    expect(await page.getAttribute(`[data-office-robots] li[data-robot="${plain}"]`, 'data-room')).toBe(roomKeyForType(plainRobot.robotType)); // by the type its owner chose, never by project
+    if (roomKeyForType(plainRobot.robotType) === 'qa') expect([1, 2]).not.toContain(Number(await page.evaluate((id) => document.querySelector(`[data-office-team] li[data-robot="${id}"]`)?.getAttribute('data-desk-index'), plain))); // an agent's desk stays the agent's
   });
 
   it('a rename of the agent follows into the office name plate live', async () => {

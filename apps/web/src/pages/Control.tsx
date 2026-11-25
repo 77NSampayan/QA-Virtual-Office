@@ -132,7 +132,7 @@ export function Control() {
               </li>
             </ul>
           ) : (
-            <p className="muted">Loading…</p>
+            <p className="muted loading" role="status">Loading…</p>
           )}
         </section>
       </div>

@@ -112,7 +112,7 @@ function DefectDetail({ id, others, onChanged }: { id: string; others: QaDefect[
   const m = useMsg();
   const load = useCallback(() => void api.defect(id).then(setD).catch(() => setD(null)), [id]);
   useEffect(load, [load, qaVersion]);
-  if (!d) return <p className="muted">Loading…</p>;
+  if (!d) return <p className="muted loading" role="status">Loading…</p>;
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try {
       await fn();
@@ -144,7 +144,7 @@ function DefectDetail({ id, others, onChanged }: { id: string; others: QaDefect[
         <dt>Assignee</dt>
         <dd>{d.assignee || '—'}</dd>
         <dt>Steps</dt>
-        <dd style={{ whiteSpace: 'pre-wrap' }}>{d.steps || '—'}</dd>
+        <dd className="prewrap">{d.steps || '—'}</dd>
         <dt>Expected</dt>
         <dd>{d.expectedResult || '—'}</dd>
         <dt>Actual</dt>
@@ -152,7 +152,7 @@ function DefectDetail({ id, others, onChanged }: { id: string; others: QaDefect[
         {d.description && (
           <>
             <dt>Description</dt>
-            <dd style={{ whiteSpace: 'pre-wrap' }}>{d.description}</dd>
+            <dd className="prewrap">{d.description}</dd>
           </>
         )}
       </dl>
@@ -319,7 +319,7 @@ export function DefectsPanel({ projectId }: { projectId: string }) {
                     <td className="muted">{[d.testCaseCode, d.runCode].filter(Boolean).join(' · ') || '—'}</td>
                   </tr>
                   {open === d.id && (
-                    <tr style={{ cursor: 'default' }}>
+                    <tr className="static">
                       <td colSpan={6}>
                         <DefectDetail id={d.id} others={items} onChanged={load} />
                       </td>
@@ -328,8 +328,8 @@ export function DefectsPanel({ projectId }: { projectId: string }) {
                 </Fragment>
               ))}
               {items.length === 0 && (
-                <tr style={{ cursor: 'default' }}>
-                  <td colSpan={6} className="muted">
+                <tr className="static">
+                  <td colSpan={6} className="muted empty">
                     No defects. Report one here, raise it from a failed test in Execution, or from a bug note in an exploratory session.
                   </td>
                 </tr>

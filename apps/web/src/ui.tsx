@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ROBOT_TYPE_INFO, STATUS_COLOR, STATUS_LABEL, isRobotType, type RobotStatus, type RobotType } from '@qavo/shared';
+import { ROBOT_TYPE_INFO, STATUS_LABEL, isRobotType, type RobotStatus, type RobotType } from '@qavo/shared';
 import type { Robot, Session } from './api.ts';
 import { DroneSprite, RobotSprite, StationSprite } from './sprites/Sprite.tsx';
+import { statusTextColor } from './statusColor.ts';
 
 export const ACTIVE_WINDOW_MS = 30 * 60_000;
 
@@ -29,7 +30,7 @@ export const needsAttention = (s: Session) => s.status === 'awaiting_permission'
 
 export function StatusPill({ status, source }: { status: RobotStatus; source: string }) {
   return (
-    <span className="pill" style={{ color: STATUS_COLOR[status] }} data-status={status} title={source === 'inferred' ? 'Inferred from tool activity' : 'Stated by the hook event'}>
+    <span className="pill" style={{ color: statusTextColor(status) }} data-status={status} title={source === 'inferred' ? 'Inferred from tool activity' : 'Stated by the hook event'}>
       {source === 'inferred' ? '~ ' : ''}
       {STATUS_LABEL[status]}
     </span>

@@ -66,6 +66,30 @@ export function facePixels(status: RobotStatus, frame: number): Pts {
   }
 }
 
+// ---------------------------------------------------------------------------- silhouette (shape, not colour)
+/**
+ * Each type has its own outline, so types can be told apart in greyscale: the head shape, the shoulders, what the robot
+ * stands on and an optional belt. Face, arms and status effects are the same for every type (they carry the real state).
+ */
+export type HeadShape = 'round' | 'box' | 'notch';
+export type Shoulders = 'none' | 'pads' | 'wide' | 'spikes';
+export type Base = 'feet' | 'treads' | 'hover';
+export interface Chassis {
+  head: HeadShape;
+  shoulders: Shoulders;
+  base: Base;
+  belt: boolean;
+}
+export const CHASSIS: Record<RobotType, Chassis> = {
+  qa_analyst: { head: 'round', shoulders: 'none', base: 'feet', belt: false },
+  manual_tester: { head: 'box', shoulders: 'pads', base: 'feet', belt: true },
+  automation_engineer: { head: 'notch', shoulders: 'wide', base: 'feet', belt: false },
+  api_tester: { head: 'round', shoulders: 'spikes', base: 'treads', belt: false },
+  regression_tester: { head: 'box', shoulders: 'none', base: 'treads', belt: true },
+  bug_investigator: { head: 'notch', shoulders: 'pads', base: 'feet', belt: true },
+  qa_lead: { head: 'box', shoulders: 'wide', base: 'hover', belt: false },
+};
+
 // ---------------------------------------------------------------------------- type decoration
 const HEAD_TOP: Record<RobotType, (g: Grid, accent: string, oy: number) => void> = {
   qa_analyst: (g, a, oy) => {
@@ -160,11 +184,23 @@ export function renderRobot({ type, status, palette, frame }: RobotSpriteInput):
   const oy = status === 'completed' && f % 2 === 1 ? -1 : 0; // celebration hop
   const g = makeGrid(ROBOT_W, ROBOT_H);
 
-  // legs + feet
-  rect(g, 7, 21 + oy, 4, 3, edge);
-  rect(g, 13, 21 + oy, 4, 3, edge);
-  rect(g, 8, 21 + oy, 2, 2, shade);
-  rect(g, 14, 21 + oy, 2, 2, shade);
+  // what the robot stands on (legs, treads or a hover pad)
+  const chassis = CHASSIS[type];
+  if (chassis.base === 'feet') {
+    rect(g, 7, 21 + oy, 4, 3, edge);
+    rect(g, 13, 21 + oy, 4, 3, edge);
+    rect(g, 8, 21 + oy, 2, 2, shade);
+    rect(g, 14, 21 + oy, 2, 2, shade);
+  } else if (chassis.base === 'treads') {
+    rect(g, 5, 21 + oy, 14, 3, edge);
+    rect(g, 6, 22 + oy, 12, 1, shade);
+    for (const x of [7, 10, 13, 16]) put(g, x, 22 + oy, f % 2 === 0 ? light : accent); // the wheels turn
+  } else {
+    rect(g, 9, 21 + oy, 6, 1, edge);
+    rect(g, 7, 22 + oy, 10, 1, edge);
+    rect(g, 8, 23 + oy, 8, 1, shade);
+    rect(g, 10, 23 + oy, 4, 1, f % 2 === 0 ? accent : light); // the thruster glows
+  }
 
   // torso + chest panel + icon + status LED
   box(g, 7, 15 + oy, 10, 6, body, edge);
@@ -226,10 +262,39 @@ export function renderRobot({ type, status, palette, frame }: RobotSpriteInput):
       arm(rightX, 15, 5);
   }
 
+  // belt stripe along the bottom of the torso
+  if (chassis.belt) for (const x of [8, 10, 12, 14]) put(g, x, 20 + oy, accent);
+  // shoulders
+  const pad = (x: number, w: number, withAccent: boolean) => {
+    rect(g, x, 14 + oy, w, 2, edge);
+    rect(g, x + 1, 14 + oy, w - 2, 1, withAccent ? accent : light);
+  };
+  if (chassis.shoulders === 'pads') {
+    pad(4, 4, false);
+    pad(16, 4, false);
+  } else if (chassis.shoulders === 'wide') {
+    pad(3, 5, true);
+    pad(16, 5, true);
+  } else if (chassis.shoulders === 'spikes') {
+    for (const x of [5, 18]) {
+      rect(g, x, 14 + oy, 2, 1, edge);
+      put(g, x, 13 + oy, accent);
+      put(g, x + 1, 12 + oy, accent);
+    }
+  }
+
   // neck + head + face screen
   rect(g, 11, 14 + oy, 2, 1, edge);
   box(g, LAYOUT.head.x, LAYOUT.head.y + oy, LAYOUT.head.w, LAYOUT.head.h, body, edge);
   rect(g, 8, 7 + oy, 8, 1, light);
+  const hx0 = LAYOUT.head.x;
+  const hx1 = LAYOUT.head.x + LAYOUT.head.w - 1;
+  const hy1 = LAYOUT.head.y + LAYOUT.head.h - 1;
+  if (chassis.head === 'round') {
+    for (const [x, y] of [[hx0, LAYOUT.head.y], [hx1, LAYOUT.head.y], [hx0, hy1], [hx1, hy1]] as const) put(g, x, y + oy, null);
+  } else if (chassis.head === 'notch') {
+    for (const [x, y] of [[hx0, LAYOUT.head.y], [hx1, LAYOUT.head.y], [hx0 + 1, LAYOUT.head.y], [hx1 - 1, LAYOUT.head.y]] as const) put(g, x, y + oy, null); // flat top with bitten corners
+  }
   rect(g, LAYOUT.face.x, LAYOUT.face.y + oy, LAYOUT.face.w, LAYOUT.face.h, SCREEN_DARK);
 
   HEAD_TOP[type](g, accent, oy);

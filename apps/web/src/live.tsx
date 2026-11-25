@@ -55,15 +55,24 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     activityTimer.current = setTimeout(() => void api.activity(40).then(setActivity).catch(() => undefined), 250);
   }, []);
 
+  /** Counts live messages, so a snapshot that raced with one can be recognised and fetched again. */
+  const messages = useRef(0);
   const refresh = useCallback(async () => {
-    const [p, s, r, n, i, a] = await Promise.all([api.projects(), api.sessions(), api.robots(), api.notifications(), api.integration(), api.activity(40)]);
-    setProjects(p);
-    setSessions(s);
-    setRobots(r);
-    setNotifications(n);
-    setUnread(n.filter((x) => x.readAt === null).length);
-    setIntegration(i);
-    setActivity(a);
+    for (let attempt = 0; ; attempt++) {
+      const start = messages.current;
+      const [p, s, r, n, i, a] = await Promise.all([api.projects(), api.sessions(), api.robots(), api.notifications(), api.integration(), api.activity(40)]);
+      // A live message that arrived while this snapshot was on its way may be newer than the snapshot (for example a robot that
+      // was created after the server answered). Applying the snapshot would then wipe it, so fetch again (at most twice more).
+      if (messages.current !== start && attempt < 2) continue;
+      setProjects(p);
+      setSessions(s);
+      setRobots(r);
+      setNotifications(n);
+      setUnread(n.filter((x) => x.readAt === null).length);
+      setIntegration(i);
+      setActivity(a);
+      return;
+    }
   }, []);
 
   useEffect(() => {
@@ -83,6 +92,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       };
       ws.onmessage = (m) => {
         const msg = JSON.parse(m.data as string) as { type: string; [k: string]: unknown };
+        messages.current++;
         switch (msg.type) {
           case 'session.updated': {
             const s = msg.session as Session | null;

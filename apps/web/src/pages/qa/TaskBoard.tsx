@@ -24,7 +24,7 @@ function TaskDetail({ id, onChanged }: { id: string; onChanged: () => void }) {
     [id],
   );
   useEffect(load, [load, qaVersion]);
-  if (!t) return <p className="muted">Loading…</p>;
+  if (!t) return <p className="muted loading" role="status">Loading…</p>;
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try {
       await fn();
@@ -114,7 +114,7 @@ export function TaskBoardPanel({ projectId }: { projectId: string }) {
       <section className="card">
         <h3>New task</h3>
         <div className="row">
-          <label style={{ flex: 1 }}>
+          <label className="grow">
             Title
             <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={200} data-task-title />
           </label>

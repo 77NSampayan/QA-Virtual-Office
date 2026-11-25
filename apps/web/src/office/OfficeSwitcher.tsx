@@ -54,11 +54,7 @@ export function OfficeSwitcher({ robots, sessions, now }: { robots: Robot[]; ses
   }
   return (
     <div data-view="office">
-      <label className="check floor-toggle">
-        <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
-        Show robots idle for more than 24 hours
-      </label>
-      <OfficeView robots={robots} sessions={sessions} projects={projects} now={now} showAll={showAll} onClassic={() => choose('classic')} />
+      <OfficeView robots={robots} sessions={sessions} projects={projects} now={now} showAll={showAll} onShowAll={setShowAll} onClassic={() => choose('classic')} />
     </div>
   );
 }

@@ -435,7 +435,7 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
     const t = setInterval(refresh, 10_000);
     return () => clearInterval(t);
   }, [refresh]);
-  if (!status || !settings) return <p className="muted">Loading settings…</p>;
+  if (!status || !settings) return <p className="muted loading" role="status">Loading settings…</p>;
   return (
     <div className="settings">
       <DesktopCard />
@@ -446,6 +446,13 @@ export function Settings({ onSignOut }: { onSignOut: () => void }) {
       <Privacy settings={settings} refresh={refresh} />
       <Excludes refresh={refresh} />
       <Data key={`${settings.retention.eventDays}-${settings.retention.contentDays}`} settings={settings} refresh={refresh} />
+      <section className="card">
+        <h2>About</h2>
+        <p className="hint">Local only. Metadata-only capture by default. “~” marks statuses inferred from tool activity. Robots show real events only.</p>
+        <a className="btnlink" href="#/sprites">
+          Sprite gallery
+        </a>
+      </section>
       <section className="card">
         <h2>Session</h2>
         <button

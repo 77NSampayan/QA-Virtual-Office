@@ -57,7 +57,7 @@ export function ManualQa({ initialTab = 'requirements' }: { initialTab?: Tab } =
         </section>
       ) : (
         <>
-          <div className="row toolbar">
+          <div className="qa-head">
             <label>
               Project
               <select value={current.id} onChange={(e) => setPid(e.target.value)} data-project-select>
@@ -68,14 +68,14 @@ export function ManualQa({ initialTab = 'requirements' }: { initialTab?: Tab } =
                 ))}
               </select>
             </label>
-            <nav className="row" aria-label="Manual QA sections">
+          </div>
+          <nav className="tabbar" aria-label="Manual QA sections">
               {TABS.map(([k, label]) => (
                 <button key={k} className={tab === k ? 'tab on' : 'tab'} onClick={() => setTab(k)} data-tab={k}>
                   {label}
                 </button>
               ))}
-            </nav>
-          </div>
+          </nav>
           {tab === 'requirements' && <RequirementsPanel projectId={current.id} />}
           {tab === 'test-cases' && <TestCasesPanel projectId={current.id} />}
           {tab === 'execution' && <ExecutionPanel projectId={current.id} />}

@@ -47,7 +47,7 @@ function ExecutionDetail({ id, runOpen, onChanged }: { id: string; runOpen: bool
     }).catch(() => setD(null));
   }, [id]);
   useEffect(load, [load, qaVersion]);
-  if (!d) return <p className="muted">Loading…</p>;
+  if (!d) return <p className="muted loading" role="status">Loading…</p>;
 
   const set = async (status: string) => {
     try {
@@ -240,7 +240,7 @@ function RunBoard({ runId, onChanged }: { runId: string; onChanged: () => void }
   const m = useMsg();
   const load = useCallback(() => void api.run(runId).then(setRun).catch(() => setRun(null)), [runId]);
   useEffect(load, [load, qaVersion]);
-  if (!run) return <p className="muted">Loading…</p>;
+  if (!run) return <p className="muted loading" role="status">Loading…</p>;
   const c = run.counts;
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try {
@@ -303,7 +303,7 @@ function RunBoard({ runId, onChanged }: { runId: string; onChanged: () => void }
                   <td>{e.evidenceCount || <span className="muted">—</span>}</td>
                 </tr>
                 {open === e.id && (
-                  <tr style={{ cursor: 'default' }}>
+                  <tr className="static">
                     <td colSpan={5}>
                       <ExecutionDetail id={e.id} runOpen={run.status === 'open'} onChanged={() => { load(); onChanged(); }} />
                     </td>
@@ -312,8 +312,8 @@ function RunBoard({ runId, onChanged }: { runId: string; onChanged: () => void }
               </Fragment>
             ))}
             {run.executions.length === 0 && (
-              <tr style={{ cursor: 'default' }}>
-                <td colSpan={5} className="muted">
+              <tr className="static">
+                <td colSpan={5} className="muted empty">
                   No test cases in this run. Only approved test cases can be added.
                 </td>
               </tr>

@@ -317,3 +317,53 @@ describe('C2 (code check): no client-side random or clock-driven activity in the
     expect(src).not.toMatch(/Math\.random|crypto\.getRandomValues|Date\.now|new Date\(|performance\.now/);
   });
 });
+
+describe('slice 3: robot types differ in shape, not only in colour', () => {
+  const mask = (g: Grid) => g.map((row) => row.map((c) => (c ? '#' : '.')).join('')).join('/');
+  const grey = { primary: '#808080', accent: '#808080' }; // identical colours for every type: only the outline can tell them apart
+
+  it('every pair of types has a different outline in every status and frame, with identical colours', () => {
+    for (const status of ALL_STATUSES) {
+      for (let f = 0; f < FRAME_COUNT; f++) {
+        const seen = new Map<string, RobotType>();
+        for (const type of ROBOT_TYPES) {
+          const m = mask(robot(status, f, type, grey));
+          expect(seen.get(m), `${type} looks like ${seen.get(m)} in ${status} frame ${f}`).toBeUndefined();
+          seen.set(m, type);
+        }
+      }
+    }
+  });
+
+  it('the outlines are not near-copies: any two types differ by at least 6 pixels when idle', () => {
+    for (const a of ROBOT_TYPES) {
+      for (const b of ROBOT_TYPES) {
+        if (a >= b) continue;
+        const ga = robot('idle', 0, a, grey);
+        const gb = robot('idle', 0, b, grey);
+        let diff = 0;
+        ga.forEach((row, y) => row.forEach((c, x) => (!!c !== !!gb[y]![x] ? diff++ : 0)));
+        expect(diff, `${a} vs ${b}`).toBeGreaterThanOrEqual(6);
+      }
+    }
+  });
+
+  it('the face is the same for every type, so the real state reads the same way on every robot', () => {
+    for (const status of ALL_STATUSES) {
+      for (let f = 0; f < FRAME_COUNT; f++) {
+        const faceOf = (type: RobotType) => pixels(robot(status, f, type, grey), FACE).filter((p) => p.c === STATUS_COLOR[status] || status === 'disconnected').map((p) => `${p.x},${p.y}`).join(';');
+        const base = faceOf('qa_analyst');
+        for (const type of ROBOT_TYPES) expect(faceOf(type), `${type} ${status} ${f}`).toBe(base);
+      }
+    }
+  });
+
+  it('a sprite never draws outside its 24x24 cell and always stands on the bottom row', () => {
+    for (const type of ROBOT_TYPES) {
+      const g = robot('idle', 0, type);
+      expect(g).toHaveLength(ROBOT_H);
+      expect(g.every((row) => row.length === ROBOT_W)).toBe(true);
+      expect(g[ROBOT_H - 1]!.some((c) => c), `${type} touches the ground`).toBe(true);
+    }
+  });
+});

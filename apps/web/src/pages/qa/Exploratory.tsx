@@ -16,7 +16,7 @@ function SessionDetail({ id, onChanged }: { id: string; onChanged: () => void })
   const m = useMsg();
   const load = useCallback(() => void api.exploratory(id).then(setS).catch(() => setS(null)), [id]);
   useEffect(load, [load, qaVersion]);
-  if (!s) return <p className="muted">Loading…</p>;
+  if (!s) return <p className="muted loading" role="status">Loading…</p>;
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try {
       await fn();
@@ -56,7 +56,7 @@ function SessionDetail({ id, onChanged }: { id: string; onChanged: () => void })
                 ))}
               </select>
             </label>
-            <label style={{ flex: 1 }}>
+            <label className="grow">
               Note
               <input value={text} onChange={(e) => setText(e.target.value)} maxLength={5000} data-note-text />
             </label>
@@ -135,7 +135,7 @@ export function ExploratoryPanel({ projectId }: { projectId: string }) {
         <h3>Plan an exploratory session</h3>
         <p className="hint">A charter is a short mission, e.g. “Explore checkout with unusual quantities”. Start it, jot notes as you go, turn bug notes into defects, then complete it with a summary.</p>
         <div className="row">
-          <label style={{ flex: 1 }}>
+          <label className="grow">
             Charter
             <input value={form.charter} onChange={(e) => setForm({ ...form, charter: e.target.value })} maxLength={1000} data-charter />
           </label>

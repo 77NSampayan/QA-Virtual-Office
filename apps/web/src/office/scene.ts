@@ -14,7 +14,7 @@
  *    that status is observed, never on the first placement. Doors open for whoever is near them.
  */
 import type { RobotPalette, RobotStatus, RobotType } from '@qavo/shared';
-import { isWalkable, tileFeet, TILE, type NookSlot, type OfficeMap, type Pt, type Seat } from './map.ts';
+import { isWalkable, tileFeet, TILE, type NookSlot, type OfficeMap, type Pt, type RoomInfo, type Seat } from './map.ts';
 import { nookForRobot } from '../sprites/nook.ts';
 import type { SoundKind } from './sound.ts';
 import { findPath } from './path.ts';
@@ -117,17 +117,37 @@ export class OfficeScene {
 
   // ------------------------------------------------------------------ targets
   private deskFor(input: RobotInput): { roomKey: string; index: number; seat: Seat } {
-    const room = this.map.rooms.find((r) => r.key === input.roomKey && !r.vacant) ?? this.map.rooms.find((r) => r.key === 'unassigned' && !r.vacant) ?? this.map.rooms.find((r) => !r.vacant);
-    if (!room || room.desks.length === 0) {
+    const rooms = this.map.rooms.filter((r) => !r.vacant && r.desks.length > 0);
+    const first = rooms.find((r) => r.key === input.roomKey) ?? rooms.find((r) => r.key === 'qa') ?? rooms[0];
+    if (!first) {
       const fallback = this.map.lounge.stands[0]!;
       return { roomKey: input.roomKey, index: 0, seat: fallback };
     }
     const cur = this.home.get(input.id);
-    const taken = new Set([...this.home.entries()].filter(([id, h]) => id !== input.id && h.roomKey === room.key).map(([, h]) => h.index));
-    const want = input.deskIndex !== undefined && input.deskIndex < room.desks.length && !taken.has(input.deskIndex) ? input.deskIndex : -1;
-    let index = want >= 0 ? want : cur && cur.roomKey === room.key && cur.index < room.desks.length && !taken.has(cur.index) ? cur.index : -1;
-    if (index < 0) index = room.desks.findIndex((d) => !taken.has(d.index));
-    if (index < 0) index = room.desks.length - 1;
+    const takenIn = (room: RoomInfo) => new Set([...this.home.entries()].filter(([id, h]) => id !== input.id && h.roomKey === room.key).map(([, h]) => h.index));
+    // 1. the desk it asked for, 2. the desk it already has, 3. a free ordinary desk (never a desk kept for a named agent),
+    // 4. an ordinary desk in another room, 5. the last desk of its own room (shared)
+    const pick = (room: RoomInfo): number => {
+      const taken = takenIn(room);
+      const ok = (i: number) => i >= 0 && i < room.desks.length && !taken.has(i);
+      if (room === first && input.deskIndex !== undefined && ok(input.deskIndex)) return input.deskIndex;
+      if (cur && cur.roomKey === room.key && ok(cur.index) && (cur.index >= room.reserved || input.deskIndex === cur.index)) return cur.index;
+      return room.desks.findIndex((d) => d.index >= room.reserved && !taken.has(d.index));
+    };
+    let room = first;
+    let index = pick(first);
+    if (index < 0) {
+      for (const r of rooms) {
+        if (r === first) continue;
+        const i = pick(r);
+        if (i >= 0) {
+          room = r;
+          index = i;
+          break;
+        }
+      }
+    }
+    if (index < 0) index = first.desks.length - 1;
     this.home.set(input.id, { roomKey: room.key, index });
     return { roomKey: room.key, index, seat: room.desks[index]! };
   }
@@ -358,6 +378,18 @@ export class OfficeScene {
   }
 
   // ------------------------------------------------------------------ queries
+  /** Rooms that have a robot assigned to a desk, and whether anyone is (or is heading to) the lounge. Derived from real robots only. */
+  occupancy(): { rooms: Set<string>; lounge: boolean } {
+    const rooms = new Set<string>();
+    let lounge = false;
+    for (const a of this.actors.values()) {
+      const parts = a.goal.key.split(':');
+      if (parts[0] === 'desk' && parts[1]) rooms.add(parts[1]);
+      else if (parts[0] === 'lounge') lounge = true;
+    }
+    return { rooms, lounge };
+  }
+
   /** The robot that owns a desk (even while it is away resting), if any. */
   deskOwner(roomKey: string, index: number): Actor | undefined {
     for (const [id, h] of this.home) if (h.roomKey === roomKey && h.index === index) return this.actors.get(id);

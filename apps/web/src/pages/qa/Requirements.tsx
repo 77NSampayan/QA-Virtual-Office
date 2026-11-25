@@ -38,7 +38,7 @@ function AddRequirement({ projectId, onDone }: { projectId: string; onDone: () =
           Reference
           <input value={f.ref} onChange={(e) => set('ref', e.target.value)} placeholder="REQ-12" required maxLength={40} />
         </label>
-        <label style={{ flex: 1, minWidth: 220 }}>
+        <label className="grow">
           Title
           <input value={f.title} onChange={(e) => set('title', e.target.value)} required maxLength={200} />
         </label>
@@ -128,7 +128,7 @@ function ImportRequirements({ projectId, onDone }: { projectId: string; onDone: 
           <p data-import-prefixes>
             Found by reference type:{' '}
             {Object.entries(preview.byPrefix).map(([p, n]) => (
-              <label key={p} className="check-label" style={{ marginRight: 12 }}>
+              <label key={p} className="check-label gap">
                 <input
                   type="checkbox"
                   checked={!skip.includes(p)}
@@ -165,7 +165,7 @@ function RequirementDetail({ id, all, onChanged }: { id: string; all: QaRequirem
   const m = useMsg();
   const load = useCallback(() => void api.requirement(id).then(setD).catch(() => setD(null)), [id]);
   useEffect(load, [load, qaVersion]);
-  if (!d) return <p className="muted">Loading…</p>;
+  if (!d) return <p className="muted loading" role="status">Loading…</p>;
   const act = async (fn: () => Promise<unknown>, done: string) => {
     try {
       await fn();
@@ -191,7 +191,7 @@ function RequirementDetail({ id, all, onChanged }: { id: string; all: QaRequirem
         >
           <div className="row">
             <input value={draft.ref} onChange={(e) => setDraft({ ...draft, ref: e.target.value })} required />
-            <input style={{ flex: 1, minWidth: 200 }} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} required />
+            <input className="grow" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} required />
             <select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
               {REQUIREMENT_KINDS.map((k) => (
                 <option key={k} value={k}>
@@ -211,7 +211,7 @@ function RequirementDetail({ id, all, onChanged }: { id: string; all: QaRequirem
         </form>
       ) : (
         <>
-          <p style={{ whiteSpace: 'pre-wrap' }}>{d.text || <span className="muted">No text.</span>}</p>
+          <p className="prewrap">{d.text || <span className="muted">No text.</span>}</p>
           <p className="muted">
             {REQUIREMENT_KIND_LABEL[d.kind as keyof typeof REQUIREMENT_KIND_LABEL] ?? d.kind}
             {d.source ? ` · ${d.source}` : ''} · {d.authoredBy === 'agent' ? 'proposed by an agent' : 'entered by you'}
@@ -289,7 +289,7 @@ function RequirementDetail({ id, all, onChanged }: { id: string; all: QaRequirem
             <option key={t}>{t}</option>
           ))}
         </select>
-        <input style={{ flex: 1, minWidth: 180 }} placeholder="What is unclear, missing or contradictory?" value={flag.note} onChange={(e) => setFlag({ ...flag, note: e.target.value })} required />
+        <input className="grow" placeholder="What is unclear, missing or contradictory?" value={flag.note} onChange={(e) => setFlag({ ...flag, note: e.target.value })} required />
         {flag.type === 'conflict' && (
           <select value={flag.related} onChange={(e) => setFlag({ ...flag, related: e.target.value })}>
             <option value="">Conflicts with…</option>
@@ -397,11 +397,11 @@ export function RequirementsPanel({ projectId }: { projectId: string }) {
                     </td>
                     <td>{REQUIREMENT_KIND_LABEL[r.kind as keyof typeof REQUIREMENT_KIND_LABEL] ?? r.kind}</td>
                     <td>{REVIEW_LABEL[r.reviewStatus] ?? r.reviewStatus}</td>
-                    <td>{r.openFlags > 0 ? <span className="pill" style={{ color: '#ff9f43' }}>{r.openFlags} open</span> : <span className="muted">—</span>}</td>
+                    <td>{r.openFlags > 0 ? <span className="pill warn-text">{r.openFlags} open</span> : <span className="muted">—</span>}</td>
                     <td>{r.testCaseCount === 0 ? <span className="muted">none</span> : `${r.testCaseCount} (${r.approvedTestCaseCount} approved)`}</td>
                   </tr>
                   {open === r.id && (
-                    <tr style={{ cursor: 'default' }}>
+                    <tr className="static">
                       <td colSpan={6}>
                         <RequirementDetail id={r.id} all={items} onChanged={load} />
                       </td>
@@ -410,8 +410,8 @@ export function RequirementsPanel({ projectId }: { projectId: string }) {
                 </Fragment>
               ))}
               {items.length === 0 && (
-                <tr style={{ cursor: 'default' }}>
-                  <td colSpan={6} className="muted">
+                <tr className="static">
+                  <td colSpan={6} className="muted empty">
                     No requirements yet. Add one, or import them from BRD/FSD text.
                   </td>
                 </tr>

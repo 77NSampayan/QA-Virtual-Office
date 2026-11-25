@@ -64,7 +64,7 @@ function TestCaseForm({ projectId, requirements, initial, onSaved, onCancel }: {
     >
       {initial && initial.status !== 'draft' && <p className="hint">Saving changes returns this test case to <strong>Draft</strong>: it needs a new review before it can be approved again.</p>}
       <div className="row">
-        <label style={{ flex: 1, minWidth: 220 }}>
+        <label className="grow">
           Title
           <input value={f.title} onChange={(e) => set('title', e.target.value)} required maxLength={200} data-field="title" />
         </label>
@@ -152,7 +152,7 @@ function Detail({ id, requirements, onChanged }: { id: string; requirements: QaR
   useEffect(load, [load, qaVersion]);
   useEffect(() => void api.playbooks().then((p) => setWriters(p.filter((x) => x.kind === 'writer' && x.available))).catch(() => setWriters([])), [qaVersion]);
   void projects;
-  if (!d) return <p className="muted">Loading…</p>;
+  if (!d) return <p className="muted loading" role="status">Loading…</p>;
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try {
       await fn();
@@ -188,7 +188,7 @@ function Detail({ id, requirements, onChanged }: { id: string; requirements: QaR
   }
   return (
     <div className="detail" data-tc-detail={d.code}>
-      <div className="row" style={{ alignItems: 'center' }}>
+      <div className="row center">
         <StatusBadge status={d.status} />
         {d.authoredBy === 'agent' && <span className="pill soon" title="Created by a Claude Code agent; it needs your review before it can be approved">Agent draft: needs your review</span>}
         {d.archived && <span className="pill prio">archived</span>}
@@ -209,29 +209,29 @@ function Detail({ id, requirements, onChanged }: { id: string; requirements: QaR
         </p>
       )}
       {d.review && (
-        <div className="plan" data-tc-review-detail={d.review.current ? d.review.verdict : 'outdated'} style={{ borderColor: 'var(--line)', background: 'transparent' }}>
-          <p style={{ margin: 0 }}>
-            <strong>{d.review.by}</strong> (reviewer agent) <strong style={{ color: d.review.verdict === 'recommend_approve' ? '#4be37c' : '#ff9f43' }}>{REVIEW_VERDICT_LABEL[d.review.verdict]}</strong>, {agoIso(d.review.at, now)}.
+        <div className="plan quiet" data-tc-review-detail={d.review.current ? d.review.verdict : 'outdated'}>
+          <p className="flush">
+            <strong>{d.review.by}</strong> (reviewer agent) <strong className={d.review.verdict === 'recommend_approve' ? 'ok-text' : 'warn-text'}>{REVIEW_VERDICT_LABEL[d.review.verdict]}</strong>, {agoIso(d.review.at, now)}.
             {!d.review.current && <span className="muted"> This review is outdated: the test case was edited afterwards.</span>}
           </p>
-          {d.review.notes && <p style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0' }}>{d.review.notes}</p>}
+          {d.review.notes && <p className="prewrap tight">{d.review.notes}</p>}
           {d.replies.map((r, i) => (
-            <p key={i} data-tc-reply style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0', paddingLeft: 10, borderLeft: '2px solid var(--line)' }}>
+            <p key={i} data-tc-reply className="prewrap reply">
               <strong>{r.by}</strong> (writer agent) replied, {agoIso(r.at, now)}: {r.note}
             </p>
           ))}
-          <p className="hint" style={{ margin: '6px 0 0' }}>A recommendation only. You decide whether to approve it.</p>
+          <p className="hint tight">A recommendation only. You decide whether to approve it.</p>
         </div>
       )}
       <dl className="fields">
         {d.scenario && (<><dt>Scenario</dt><dd>{d.scenario}</dd></>)}
-        {d.description && (<><dt>Description</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{d.description}</dd></>)}
-        {d.preconditions && (<><dt>Preconditions</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{d.preconditions}</dd></>)}
+        {d.description && (<><dt>Description</dt><dd className="prewrap">{d.description}</dd></>)}
+        {d.preconditions && (<><dt>Preconditions</dt><dd className="prewrap">{d.preconditions}</dd></>)}
         <dt>Steps</dt>
         <dd>{d.steps.length ? <ol>{d.steps.map((s, i) => <li key={i}>{s}</li>)}</ol> : <span className="muted">No steps yet.</span>}</dd>
-        {d.testData && (<><dt>Test data</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{d.testData}</dd></>)}
+        {d.testData && (<><dt>Test data</dt><dd className="prewrap">{d.testData}</dd></>)}
         <dt>Expected result</dt>
-        <dd style={{ whiteSpace: 'pre-wrap' }}>{d.expectedResult || <span className="muted">Not written yet.</span>}</dd>
+        <dd className="prewrap">{d.expectedResult || <span className="muted">Not written yet.</span>}</dd>
         <dt>Type · priority · tester</dt>
         <dd>
           {TEST_TYPE_LABEL[d.testType as keyof typeof TEST_TYPE_LABEL] ?? d.testType} · {d.priority} · {d.assignedTester || 'unassigned'}
@@ -241,8 +241,8 @@ function Detail({ id, requirements, onChanged }: { id: string; requirements: QaR
       </dl>
 
       {!d.archived && (
-        <div className="plan" style={{ borderColor: 'var(--line)', background: 'transparent' }}>
-          <p className="hint" style={{ marginBottom: 6 }}>
+        <div className="plan quiet">
+          <p className="hint tight-b">
             Only you can move a test case through review. Agents can write drafts but cannot approve or reject them.
           </p>
           <div className="row">
@@ -380,7 +380,7 @@ function ImportTestCases({ projectId, onDone }: { projectId: string; onDone: () 
               </thead>
               <tbody>
                 {preview.wouldCreate.slice(0, 50).map((w) => (
-                  <tr key={w.row} style={{ cursor: 'default' }}>
+                  <tr key={w.row} className="static">
                     <td>{w.row}</td>
                     <td className="mono">{w.externalId || '—'}</td>
                     <td>{w.title}</td>
@@ -415,14 +415,17 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
 
   return (
     <div data-panel="test-cases">
-      <div className="row toolbar">
+      <div className="filterbar">
+        <div className="actions">
         <button className={creating ? 'tab on' : 'tab'} onClick={() => (setCreating(!creating), setImporting(false))}>
           New test case
         </button>
         <button className={importing ? 'tab on' : 'tab'} data-tc-import-toggle onClick={() => (setImporting(!importing), setCreating(false))}>
           Import from table
         </button>
-        <input placeholder="Search…" value={filters.q} onChange={(e) => set('q', e.target.value)} style={{ width: 160 }} />
+        </div>
+        <div className="filters">
+        <input placeholder="Search…" value={filters.q} onChange={(e) => set('q', e.target.value)} className="search" />
         <select value={filters.status} onChange={(e) => set('status', e.target.value)} aria-label="Status filter">
           <option value="">All statuses</option>
           {TEST_CASE_STATUSES.map((s) => (
@@ -465,11 +468,12 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
           <option value="outdated">Review outdated</option>
           <option value="unreviewed">Not reviewed</option>
         </select>
-        <label className="check" style={{ margin: 0 }}>
+        <label className="check flush">
           <input type="checkbox" checked={filters.includeArchived === 'true'} onChange={(e) => set('includeArchived', e.target.checked ? 'true' : '')} />
           Archived
         </label>
-        <span className="muted">{items.length} test case(s)</span>
+        <span className="muted count">{items.length} test case(s)</span>
+        </div>
       </div>
       {creating && (
         <section className="card">
@@ -540,7 +544,7 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
                     <td>{t.requirementRefs.length ? t.requirementRefs.join(', ') : <span className="muted">—</span>}</td>
                   </tr>
                   {open === t.id && (
-                    <tr style={{ cursor: 'default' }}>
+                    <tr className="static">
                       <td colSpan={7}>
                         <Detail id={t.id} requirements={reqs} onChanged={load} />
                       </td>
@@ -549,8 +553,8 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
                 </Fragment>
               ))}
               {items.length === 0 && (
-                <tr style={{ cursor: 'default' }}>
-                  <td colSpan={7} className="muted">
+                <tr className="static">
+                  <td colSpan={7} className="muted empty">
                     No test cases match. Create a draft; it must be reviewed and approved by you before it counts as approved.
                   </td>
                 </tr>

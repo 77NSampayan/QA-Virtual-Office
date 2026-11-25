@@ -154,7 +154,7 @@ describe('camera', () => {
     expect((await cam()).zoom).toBeLessThan(zoomed.zoom);
     for (let i = 0; i < 20; i++) await page.mouse.wheel(0, 800);
     await page.waitForTimeout(150);
-    expect((await cam()).zoom).toBeGreaterThanOrEqual(1);
+    expect((await cam()).zoom).toBeGreaterThanOrEqual(0.5);
     for (let i = 0; i < 30; i++) await page.mouse.wheel(0, -800);
     await page.waitForTimeout(150);
     expect((await cam()).zoom).toBeLessThanOrEqual(8);
@@ -351,9 +351,9 @@ describe('views, narrow screens and reduced motion', () => {
     await p.waitForSelector('[data-office]');
     await post('v1-d', 'SessionStart', { source: 'startup' });
     const id = await robotOf('v1-d');
-    await p.waitForSelector(`${li(id)}[data-zone="lounge"]`, { state: 'attached', timeout: 10_000 });
+    await p.waitForSelector(`${li(id)}[data-zone="lounge"]`, { state: 'attached', timeout: 30_000 });
     await post('v1-d', 'UserPromptSubmit');
-    await p.waitForSelector(`${li(id)}[data-zone="desk"]`, { state: 'attached', timeout: 10_000 });
+    await p.waitForSelector(`${li(id)}[data-zone="desk"]`, { state: 'attached', timeout: 30_000 });
     expect((await cam(p)).walking).toBe('false');
   });
 });

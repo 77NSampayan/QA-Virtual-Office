@@ -85,7 +85,7 @@ export function App() {
     };
   }, []);
 
-  if (auth === 'checking') return <div className="app muted">Connecting…</div>;
+  if (auth === 'checking') return <div className="app muted loading" role="status">Connecting…</div>;
   if (auth === 'denied') {
     return (
       <div className="app">
