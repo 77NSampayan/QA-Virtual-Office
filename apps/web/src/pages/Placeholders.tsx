@@ -9,14 +9,6 @@ export const ApiTesting = () => (
     items={['Secrets are never shown in logs or reports']}
   />
 );
-export const TestData = () => (
-  <ComingSoon
-    title="Test Data Management"
-    pass="Pass 3"
-    intro="Test data profiles per environment with masking and redaction."
-    items={['Production personal information is not exposed']}
-  />
-);
 export const Metrics = () => (
   <ComingSoon
     title="QA Metrics and Reporting"

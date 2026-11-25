@@ -245,6 +245,30 @@ export interface AutomationScriptDetail extends AutomationScript {
   decidedAt: string | null;
   decisionNote: string;
 }
+export interface TestDataField {
+  key: string;
+  kind: 'fixed' | 'placeholder' | 'secret_ref';
+  value: string;
+}
+export interface TestDataProfile {
+  id: string;
+  projectId: string;
+  code: string;
+  name: string;
+  environment: string;
+  description: string;
+  fieldCount: number;
+  updatedAt: string;
+}
+export interface TestDataProfileDetail extends TestDataProfile {
+  fields: TestDataField[];
+}
+export interface TestDataInput {
+  name: string;
+  environment: string;
+  description: string;
+  fields: TestDataField[];
+}
 export interface AutomationCounts {
   total: number;
   passed: number;
@@ -724,6 +748,12 @@ export const api = {
   automationScripts: (pid: string) => call<AutomationScript[]>('GET', `/api/projects/${pid}/automation/scripts`),
   automationScript: (id: string) => call<AutomationScriptDetail>('GET', `/api/automation/scripts/${id}`),
   decideScript: (id: string, to: 'approved' | 'rejected', note = '') => call<AutomationScriptDetail>('POST', `/api/automation/scripts/${id}/decision`, { to, note }),
+  testDataProfiles: (pid: string) => call<TestDataProfile[]>('GET', `/api/projects/${pid}/test-data`),
+  testDataProfile: (id: string) => call<TestDataProfileDetail>('GET', `/api/test-data/${id}`),
+  createTestData: (pid: string, b: TestDataInput) => call<TestDataProfileDetail>('POST', `/api/projects/${pid}/test-data`, b),
+  updateTestData: (id: string, b: TestDataInput) => call<TestDataProfileDetail>('PUT', `/api/test-data/${id}`, b),
+  deleteTestData: (id: string) => call<{ deleted: true }>('DELETE', `/api/test-data/${id}`),
+  checkTestDataText: (text: string) => call<{ masked: string; findings: Array<{ type: string; count: number }> }>('POST', '/api/test-data/check', { text }),
   automationRuns: (pid: string) => call<AutomationRun[]>('GET', `/api/projects/${pid}/automation/runs`),
   automationRun: (id: string) => call<AutomationRunDetail>('GET', `/api/automation/runs/${id}`),
   importAutomation: (pid: string, b: { text: string; name?: string; environment?: string; dryRun?: boolean }) => call<AutomationImportResult>('POST', `/api/projects/${pid}/automation/import`, b),

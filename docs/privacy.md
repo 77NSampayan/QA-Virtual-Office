@@ -156,3 +156,7 @@ Only when a person presses Scan project. Reads file names (up to three folders d
 ### Automation script drafts (Pass 3, A4)
 
 An Automation Writer agent can save the text of a script it drafted (up to 50,000 characters, with a title and notes). Like other agent-written QA text it is stored as typed after redaction: secrets, tokens, e-mail addresses and similar are masked before saving and again when an agent reads it back, and the writer is told when something was masked. Scripts are kept only in the local database and are never executed, never written into a project folder and never sent anywhere. A reviewer agent sees only the script, its linked test case and review notes.
+
+### Test data profiles (Pass 3, D1)
+
+Test data profiles are for FAKE data only. A fixed value that looks like real personal data (e-mail, phone, card, ID number, IP address) or a secret is refused with a reason and not stored; clearly fictional values are accepted (example.test/.com addresses, 555-01xx phone numbers, documentation IP ranges, published test card numbers). Passwords, tokens and keys are never stored: a field named like a secret can only be a placeholder or a secret reference, and a secret reference is only the NAME of an environment variable in capitals. The masking helper processes a pasted text in memory and returns it with personal data masked; nothing pasted there is stored or logged.
