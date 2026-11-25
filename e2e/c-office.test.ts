@@ -215,7 +215,7 @@ describe('C1 + C2: a robot follows real events through all 10 statuses', () => {
 describe('the office with several departments', () => {
   it('robots sit in the department of their logical role, each at its own workstation', async () => {
     const sessions = ['d-analyst', 'd-manual', 'd-auto', 'd-api', 'd-regr', 'd-bug', 'd-lead'];
-    const roles = ['qa_analyst', 'manual_tester', 'automation_engineer', 'api_tester', 'regression_tester', 'bug_investigator', 'qa_lead'];
+    const roles = ['qa_analyst', 'manual_tester', 'automation_engineer', 'api_tester', 'regression_tester', 'bug_investigator', 'qa_lead', 'ci_operator'];
     const statuses: Array<[string, Record<string, unknown>?]> = [
       ['UserPromptSubmit'],
       ['PreToolUse', { toolName: 'Write', fileCategory: 'test' }],
@@ -361,11 +361,11 @@ describe('C4: layout works at 360 px', () => {
 });
 
 describe('the sprite gallery and placeholders', () => {
-  it('gallery renders all 10 statuses, 7 types and drones; unbuilt modules say which pass delivers them', async () => {
+  it('gallery renders all 10 statuses, 8 types and drones; unbuilt modules say which pass delivers them', async () => {
     await page.goto(env.origin + '/#/sprites');
     await page.waitForSelector('[data-page="sprites"]');
     expect(await page.$$('[data-gallery-status]')).toHaveLength(10);
-    expect(await page.$$('[data-gallery-type]')).toHaveLength(7);
+    expect(await page.$$('[data-gallery-type]')).toHaveLength(8);
     await shot('sprite-gallery.png');
     // (Manual QA is a real screen since Pass 2A and the Task Board since 2C; their browser tests are in qa-2a/qa-2c; its own browser tests are in qa-2a.test.ts)
     for (const [route, pass] of [['/automation', 'Pass 3'], ['/metrics', 'Pass 4']] as const) {

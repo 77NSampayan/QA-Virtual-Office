@@ -88,6 +88,7 @@ export const CHASSIS: Record<RobotType, Chassis> = {
   regression_tester: { head: 'box', shoulders: 'none', base: 'treads', belt: true },
   bug_investigator: { head: 'notch', shoulders: 'pads', base: 'feet', belt: true },
   qa_lead: { head: 'box', shoulders: 'wide', base: 'hover', belt: false },
+  ci_operator: { head: 'notch', shoulders: 'spikes', base: 'hover', belt: true },
 };
 
 // ---------------------------------------------------------------------------- type decoration
@@ -126,6 +127,12 @@ const HEAD_TOP: Record<RobotType, (g: Grid, accent: string, oy: number) => void>
     // crown
     puts(g, [[8, 3], [11, 3], [12, 3], [15, 3], [8, 4], [9, 4], [11, 4], [12, 4], [14, 4], [15, 4], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5], [14, 5], [15, 5], [8, 6], [9, 6], [10, 6], [11, 6], [12, 6], [13, 6], [14, 6], [15, 6]], a, 0, oy);
   },
+  ci_operator: (g, a, oy) => {
+    // two build lights either side of a short mast
+    rect(g, 11, 5 + oy, 2, 2, OUTLINE);
+    rect(g, 8, 4 + oy, 3, 2, a);
+    rect(g, 13, 4 + oy, 3, 2, a);
+  },
 };
 
 /** 4x3 chest icons: pixel offsets inside the chest panel at (10,17). */
@@ -137,6 +144,7 @@ const CHEST_ICON: Record<RobotType, { white: Pts; accent: Pts }> = {
   regression_tester: { white: [[3, 0]], accent: [[1, 0], [2, 0], [0, 1], [3, 1], [1, 2], [2, 2]] },
   bug_investigator: { white: [[1, 0], [2, 0]], accent: [[0, 0], [3, 0], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2], [3, 2]] },
   qa_lead: { white: [], accent: [[1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [3, 1], [1, 2], [2, 2]] },
+  ci_operator: { white: [[3, 1]], accent: [[0, 1], [1, 1], [2, 1], [3, 0], [3, 2]] }, // a pipeline arrow
 };
 
 // ---------------------------------------------------------------------------- props and effects

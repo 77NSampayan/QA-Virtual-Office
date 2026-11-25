@@ -18,6 +18,7 @@ const SIDE_ITEM: Record<RobotType, { rows: readonly string[]; x: number; y: numb
   api_tester: { x: 1, y: 3, rows: ['oooooooo', 'oAoSSSSo', 'oooooooo', 'oAoSSSSo', 'oooooooo', 'oAoSSSSo', 'oooooooo'] }, // server rack
   regression_tester: { x: 1, y: 3, rows: ['oooooooo', 'oSSSSSSo', 'oAoAoAoo', 'oSSSSSSo', 'oAoAoAoo', 'oooooooo', '.o....o.'] }, // test tray
   bug_investigator: { x: 2, y: 3, rows: ['..oooo..', '.oSSSSo.', 'oSAASSSo', 'oSSAASSo', 'oSSSSSSo', '.oSSSSo.', '..oooo..'] }, // bug jar
+  ci_operator: { x: 1, y: 3, rows: ['oooooooo', 'oAoooAoo', 'oAAAAAAo', 'oAoooAoo', 'oooooooo', '..o..o..', '.oooooo.'] }, // pipeline stages
   qa_lead: { x: 1, y: 3, rows: ['oooooooo', 'oSSSSSSo', 'oSaSaSSo', 'oSSSSSSo', 'oooooooo', '..o..o..', '.oooooo.'] }, // dashboard
 };
 

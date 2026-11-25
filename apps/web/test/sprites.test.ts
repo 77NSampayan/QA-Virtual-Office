@@ -222,15 +222,15 @@ describe('C1: status animations (as specified)', () => {
 });
 
 describe('robot types and workstations', () => {
-  it('the 7 robot types look different in every status', () => {
-    for (const status of ALL_STATUSES) expect(distinct(ROBOT_TYPES.map((t) => robot(status, 0, t))), status).toBe(7);
+  it('the 8 robot types look different in every status', () => {
+    for (const status of ALL_STATUSES) expect(distinct(ROBOT_TYPES.map((t) => robot(status, 0, t))), status).toBe(8);
   });
-  it('the 7 workstations look different in every status', () => {
-    for (const status of ALL_STATUSES) expect(distinct(ROBOT_TYPES.map((t) => station(status, 0, t))), status).toBe(7);
+  it('the 8 workstations look different in every status', () => {
+    for (const status of ALL_STATUSES) expect(distinct(ROBOT_TYPES.map((t) => station(status, 0, t))), status).toBe(8);
   });
   it('every type has a label, specialty, workstation and department', () => {
     expect(ROBOT_TYPES.map((t) => ROBOT_TYPE_INFO[t].workstation)).toEqual(
-      expect.arrayContaining(['Requirements terminal', 'Testing workstation', 'Development workstation', 'API monitoring terminal', 'Test execution station', 'Debugging workstation', 'Central control desk']),
+      expect.arrayContaining(['Requirements terminal', 'Testing workstation', 'Development workstation', 'API monitoring terminal', 'Test execution station', 'Debugging workstation', 'Central control desk', 'Pipeline console']),
     );
   });
   it('drones animate and reflect status', () => {

@@ -43,6 +43,10 @@ describe('robots API', () => {
     const ok = await api('PATCH', `/api/robots/${id}`, { name: 'Tess', robotType: 'bug_investigator', role: 'api_tester', palette: { primary: '#112233', accent: '#ABCDEF' } });
     expect(ok.status).toBe(200);
     expect(ok.body).toMatchObject({ name: 'Tess', robotType: 'bug_investigator', role: 'api_tester', palette: { primary: '#112233', accent: '#ABCDEF' } });
+    // the CI/CD Operator type needs no database change (robot_type is plain text): it is just another valid type
+    const ci = await api('PATCH', `/api/robots/${id}`, { robotType: 'ci_operator', role: 'ci_operator' });
+    expect(ci.status).toBe(200);
+    expect(ci.body).toMatchObject({ robotType: 'ci_operator', role: 'ci_operator' });
     for (const bad of [
       { name: '' },
       { name: 'x'.repeat(31) },

@@ -1,5 +1,5 @@
 /**
- * Robot identity constants (browser-safe): the 7 QA robot types/roles, departments, workstations
+ * Robot identity constants (browser-safe): the 8 robot types/roles, departments, workstations
  * and the status colour/animation specification. Roles are LOGICAL application roles, not claims
  * that Claude Code has specialised agent types.
  */
@@ -13,6 +13,7 @@ export const ROBOT_TYPES = [
   'regression_tester',
   'bug_investigator',
   'qa_lead',
+  'ci_operator',
 ] as const;
 export type RobotType = (typeof ROBOT_TYPES)[number];
 
@@ -84,6 +85,13 @@ export const ROBOT_TYPE_INFO: Record<RobotType, RobotTypeInfo> = {
     workstation: 'Central control desk',
     department: 'lead',
     defaultPalette: { primary: '#e2b93b', accent: '#ff5d6c' },
+  },
+  ci_operator: {
+    label: 'CI/CD Operator',
+    specialty: 'Pipelines, builds and releases',
+    workstation: 'Pipeline console',
+    department: 'automation',
+    defaultPalette: { primary: '#5b8fa8', accent: '#ff7a1a' },
   },
 };
 
