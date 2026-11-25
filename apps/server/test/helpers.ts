@@ -5,6 +5,7 @@ import path from 'node:path';
 import { bootstrapDataDir } from '../src/dataDir.ts';
 import { openDb } from '../src/db/index.ts';
 import { buildApp, type AppHandle } from '../src/app.ts';
+import type { SecretStore } from '../src/secretStore.ts';
 import { seedDemo } from '../src/demo.ts';
 
 export async function freePort(): Promise<number> {
@@ -30,7 +31,7 @@ export interface TestEnv extends AppHandle {
   cleanup: () => Promise<void>;
 }
 
-export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean; auth?: boolean; webDist?: string; demo?: boolean; launchClaude?: (cwd: string, run?: { configPath: string; runId: string }) => void } = {}): Promise<TestEnv> {
+export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean; auth?: boolean; webDist?: string; demo?: boolean; launchClaude?: (cwd: string, run?: { configPath: string; runId: string }) => void; ci?: { secrets?: SecretStore; fetch?: typeof fetch } } = {}): Promise<TestEnv> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qavo-srv-'));
   const dataDir = path.join(root, 'data');
   const { paths, token } = bootstrapDataDir(dataDir, { applyAcl: opts.applyAcl ?? false });
@@ -49,6 +50,7 @@ export async function makeEnv(opts: { applyAcl?: boolean; listen?: boolean; auth
     authRequired: opts.auth ?? false,
     ...(opts.demo ? { demo: true } : {}),
     ...(opts.launchClaude ? { launchClaude: opts.launchClaude } : {}),
+    ...(opts.ci ? { ci: opts.ci } : {}),
     installOverrides: { nodePath: process.execPath },
   });
   handle.regeneratePolicy();

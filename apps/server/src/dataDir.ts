@@ -34,6 +34,8 @@ export interface DataDirPaths {
   evidence: string;
   agentToken: string;
   mcpDir: string;
+  /** Protected (DPAPI) access tokens for CI/CD connections. Never inside the database, backups or exports. */
+  secretsDir: string;
   mcpScript: string;
   /** Per-run MCP configs (each holds one run credential). */
   runsDir: string;
@@ -60,6 +62,7 @@ export function dataDirPaths(root: string): DataDirPaths {
     evidence: path.join(root, 'evidence'),
     agentToken: path.join(root, 'agent-token'),
     mcpDir: path.join(root, 'mcp'),
+    secretsDir: path.join(root, 'secrets'),
     runsDir: path.join(root, 'runs'),
     mcpScript: path.join(root, 'mcp', 'qa-office-mcp.mjs'),
     logs: path.join(root, 'logs'),
@@ -162,7 +165,7 @@ export function bootstrapDataDir(root: string, opts: { applyAcl?: boolean } = {}
   fs.mkdirSync(root, { recursive: true });
   const applyAcl = opts.applyAcl ?? true;
   if (applyAcl) applyOwnerOnlyAcl(root);
-  for (const d of [paths.hooksDir, paths.logs, paths.backups, paths.settingsBackups, paths.exports, paths.evidence, paths.mcpDir]) {
+  for (const d of [paths.hooksDir, paths.logs, paths.backups, paths.settingsBackups, paths.exports, paths.evidence, paths.mcpDir, paths.secretsDir]) {
     fs.mkdirSync(d, { recursive: true });
   }
   let token = fs.existsSync(paths.token) ? fs.readFileSync(paths.token, 'utf8').trim() : '';

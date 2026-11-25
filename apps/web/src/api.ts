@@ -269,6 +269,18 @@ export interface TestDataInput {
   description: string;
   fields: TestDataField[];
 }
+export interface CiConnection {
+  id: string;
+  projectId: string;
+  provider: 'github' | 'azure_devops';
+  providerLabel: string;
+  owner: string;
+  name: string;
+  tokenStored: boolean;
+  lastTestedAt: string | null;
+  lastTestOk: boolean | null;
+  lastTestMessage: string;
+}
 export interface AutomationCounts {
   total: number;
   passed: number;
@@ -754,6 +766,11 @@ export const api = {
   updateTestData: (id: string, b: TestDataInput) => call<TestDataProfileDetail>('PUT', `/api/test-data/${id}`, b),
   deleteTestData: (id: string) => call<{ deleted: true }>('DELETE', `/api/test-data/${id}`),
   checkTestDataText: (text: string) => call<{ masked: string; findings: Array<{ type: string; count: number }> }>('POST', '/api/test-data/check', { text }),
+  ciConnections: (pid: string) => call<CiConnection[]>('GET', `/api/projects/${pid}/ci/connections`),
+  connectCi: (pid: string, b: { provider: string; owner: string; name: string; token: string }) => call<CiConnection>('POST', `/api/projects/${pid}/ci/connections`, b),
+  testCi: (id: string) => call<{ connection: CiConnection; ok: boolean; message: string }>('POST', `/api/ci/connections/${id}/test`, {}),
+  replaceCiToken: (id: string, token: string) => call<CiConnection>('PUT', `/api/ci/connections/${id}/token`, { token }),
+  disconnectCi: (id: string) => call<{ disconnected: true }>('DELETE', `/api/ci/connections/${id}`),
   automationRuns: (pid: string) => call<AutomationRun[]>('GET', `/api/projects/${pid}/automation/runs`),
   automationRun: (id: string) => call<AutomationRunDetail>('GET', `/api/automation/runs/${id}`),
   importAutomation: (pid: string, b: { text: string; name?: string; environment?: string; dryRun?: boolean }) => call<AutomationImportResult>('POST', `/api/projects/${pid}/automation/import`, b),

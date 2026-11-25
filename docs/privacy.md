@@ -160,3 +160,7 @@ An Automation Writer agent can save the text of a script it drafted (up to 50,00
 ### Test data profiles (Pass 3, D1)
 
 Test data profiles are for FAKE data only. A fixed value that looks like real personal data (e-mail, phone, card, ID number, IP address) or a secret is refused with a reason and not stored; clearly fictional values are accepted (example.test/.com addresses, 555-01xx phone numbers, documentation IP ranges, published test card numbers). Passwords, tokens and keys are never stored: a field named like a secret can only be a placeholder or a secret reference, and a secret reference is only the NAME of an environment variable in capitals. The masking helper processes a pasted text in memory and returns it with personal data masked; nothing pasted there is stored or logged.
+
+### CI/CD connections (Pass 3, A3a)
+
+What leaves this computer: an HTTPS request to `api.github.com` or `dev.azure.com` containing the access token and the repository (or organisation and project) name you typed, plus a generic client name. No project alias, folder path, user name, machine name, QA record or test data is sent. What is stored: provider, the target name you typed and the result of the last connection test. The token is stored only in Windows protected storage, never in the database, backups, exports or logs. This step reads no pipeline data at all; it only checks that the connection works.

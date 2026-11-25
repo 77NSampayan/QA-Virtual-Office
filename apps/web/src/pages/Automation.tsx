@@ -3,6 +3,7 @@ import { AUTOMATION_CLASSIFICATIONS, AUTOMATION_CLASSIFICATION_LABEL, type Autom
 import { api, type AutomationScript, type AutomationImportResult, type FrameworkDetection, type AutomationResult, type AutomationRun, type AutomationRunDetail } from '../api.ts';
 import { useLive } from '../live.tsx';
 import { Drawer } from '../ui.tsx';
+import { CiPanel } from './CiPanel.tsx';
 import { ScriptDetail, ScriptsPanel } from './ScriptsPanel.tsx';
 import { MsgLine, useMsg } from './qa/Requirements.tsx';
 
@@ -331,6 +332,7 @@ export function Automation() {
             </label>
           </div>
           <DetectPanel projectId={current.id} />
+          <CiPanel projectId={current.id} />
           <ImportPanel projectId={current.id} onDone={load} />
           <section className="card">
             <h3>Imported runs</h3>

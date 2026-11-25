@@ -19,6 +19,8 @@ import { registerPermissionRoutes } from './permissionRoutes.ts';
 import { expireOnEvent } from './permissions.ts';
 import { registerQaExecRoutes } from './qaExecRoutes.ts';
 import { registerQaAutomationRoutes } from './qaAutomationRoutes.ts';
+import { registerQaCiRoutes } from './qaCiRoutes.ts';
+import { createDpapiStore, type SecretStore } from './secretStore.ts';
 import { registerQaTestDataRoutes } from './qaTestDataRoutes.ts';
 import { registerQaRoutes } from './qaRoutes.ts';
 import { registerQaWorkRoutes } from './qaWorkRoutes.ts';
@@ -70,6 +72,8 @@ export interface AppOptions {
   demo?: boolean;
   /** Test seam for "Launch Claude Code here" (default opens a real terminal). */
   launchClaude?: LaunchClaude;
+  /** Test seams for CI/CD monitoring: where tokens are kept and how the provider is called (defaults: Windows DPAPI, global fetch). */
+  ci?: { secrets?: SecretStore; fetch?: typeof fetch };
 }
 
 export interface AppHandle {
@@ -276,6 +280,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   registerQaRoutes(app, { db, broadcast });
   registerQaExecRoutes(app, { db, broadcast, evidenceDir: paths.evidence });
   registerQaAutomationRoutes(app, { db, broadcast });
+  registerQaCiRoutes(app, { db, broadcast, ci: { secrets: opts.ci?.secrets ?? createDpapiStore(paths.secretsDir), fetch: opts.ci?.fetch ?? fetch } });
   registerQaTestDataRoutes(app, { db, broadcast });
   registerQaWorkRoutes(app, { db, broadcast });
   registerAgentRoutes(app, { db, paths, port, demo: opts.demo === true, launchClaude: opts.launchClaude ?? defaultLaunchClaude, broadcast: broadcast as (m: unknown) => void });
