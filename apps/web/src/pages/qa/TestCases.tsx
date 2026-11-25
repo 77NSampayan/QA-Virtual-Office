@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { REVIEW_VERDICT_LABEL, PRIORITIES, TEST_CASE_STATUSES, TEST_CASE_STATUS_LABEL, TEST_TYPES, TEST_TYPE_LABEL, nextStatuses, type TestCaseStatus } from '@qavo/shared';
 import { api, ApiDetailError, type Playbook, type QaRequirement, type QaTestCase, type QaTestCaseDetail, type QaTestCaseImportResult, type QaTestCaseInput } from '../../api.ts';
 import { useLive } from '../../live.tsx';
-import { agoIso, useNow } from '../../ui.tsx';
+import { Drawer, agoIso, useNow } from '../../ui.tsx';
 import { errText, MsgLine } from './Requirements.tsx';
 
 const STATUS_COLOR: Record<TestCaseStatus, string> = { draft: '#9aa3b5', in_review: '#ffd54a', approved: '#4be37c', rejected: '#ff5d6c' };
@@ -543,13 +543,6 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
                     <td className="muted">{t.executionStatus}</td>
                     <td>{t.requirementRefs.length ? t.requirementRefs.join(', ') : <span className="muted">—</span>}</td>
                   </tr>
-                  {open === t.id && (
-                    <tr className="static">
-                      <td colSpan={7}>
-                        <Detail id={t.id} requirements={reqs} onChanged={load} />
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
               ))}
               {items.length === 0 && (
@@ -561,6 +554,11 @@ export function TestCasesPanel({ projectId }: { projectId: string }) {
               )}
             </tbody>
           </table>
+          {open && (
+            <Drawer title={items.find((x) => x.id === open)?.code ?? 'Details'} onClose={() => setOpen(null)}>
+              <Detail id={open} requirements={reqs} onChanged={load} />
+            </Drawer>
+          )}
         </div>
       </section>
     </div>

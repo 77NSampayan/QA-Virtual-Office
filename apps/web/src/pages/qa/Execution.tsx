@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { EVIDENCE_MAX_BYTES, EXECUTION_STATUS_LABEL, type ExecutionStatus } from '@qavo/shared';
 import { api, type QaDefect, type QaExecution, type QaExecutionDetail, type QaRun } from '../../api.ts';
 import { useLive } from '../../live.tsx';
+import { Drawer } from '../../ui.tsx';
 import { MsgLine, useMsg } from './Requirements.tsx';
 
 const COLOR: Record<string, string> = {
@@ -302,13 +303,6 @@ function RunBoard({ runId, onChanged }: { runId: string; onChanged: () => void }
                   </td>
                   <td>{e.evidenceCount || <span className="muted">—</span>}</td>
                 </tr>
-                {open === e.id && (
-                  <tr className="static">
-                    <td colSpan={5}>
-                      <ExecutionDetail id={e.id} runOpen={run.status === 'open'} onChanged={() => { load(); onChanged(); }} />
-                    </td>
-                  </tr>
-                )}
               </Fragment>
             ))}
             {run.executions.length === 0 && (
@@ -320,6 +314,11 @@ function RunBoard({ runId, onChanged }: { runId: string; onChanged: () => void }
             )}
           </tbody>
         </table>
+        {open && (
+          <Drawer title={run.executions.find((x) => x.id === open)?.testCaseCode ?? 'Details'} onClose={() => setOpen(null)}>
+            <ExecutionDetail id={open} runOpen={run.status === 'open'} onChanged={() => { load(); onChanged(); }} />
+          </Drawer>
+        )}
       </div>
     </section>
   );

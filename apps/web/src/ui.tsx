@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ROBOT_TYPE_INFO, STATUS_LABEL, isRobotType, type RobotStatus, type RobotType } from '@qavo/shared';
 import type { Robot, Session } from './api.ts';
 import { DroneSprite, RobotSprite, StationSprite } from './sprites/Sprite.tsx';
@@ -127,3 +128,36 @@ export const NoData = ({ title, pass, text }: { title: string; pass: string; tex
     </p>
   </section>
 );
+
+/**
+ * Side drawer for the details of a selected table row. Not modal on wide screens (the table stays usable beside it; the page
+ * makes room via the `drawer-open` class on body); a full-width overlay on narrow ones. Escape or the Close button closes it.
+ */
+export function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    document.body.classList.add('drawer-open');
+    return () => document.body.classList.remove('drawer-open');
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null; // never lose text being typed
+      if (e.key === 'Escape' && !(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  useEffect(() => ref.current?.focus({ preventScroll: true }), [title]);
+  return createPortal(
+    <aside className="drawer" ref={ref} tabIndex={-1} role="complementary" aria-label={`Details: ${title}`} data-drawer>
+      <header className="drawer-head">
+        <strong className="grow mono">{title}</strong>
+        <button className="ghost" onClick={onClose} data-drawer-close aria-label="Close details">
+          Close
+        </button>
+      </header>
+      <div className="drawer-body">{children}</div>
+    </aside>,
+    document.body,
+  );
+}

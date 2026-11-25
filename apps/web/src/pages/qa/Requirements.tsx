@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { FLAG_TYPES, REQUIREMENT_KINDS, REQUIREMENT_KIND_LABEL, REVIEW_STATUSES, TEST_CASE_STATUS_LABEL, type TestCaseStatus } from '@qavo/shared';
 import { api, ApiDetailError, type QaImportResult, type QaRequirement, type QaRequirementDetail } from '../../api.ts';
 import { useLive } from '../../live.tsx';
+import { Drawer } from '../../ui.tsx';
 
 const REVIEW_LABEL: Record<string, string> = { unreviewed: 'Unreviewed', reviewed: 'Reviewed', needs_clarification: 'Needs clarification' };
 
@@ -400,13 +401,6 @@ export function RequirementsPanel({ projectId }: { projectId: string }) {
                     <td>{r.openFlags > 0 ? <span className="pill warn-text">{r.openFlags} open</span> : <span className="muted">—</span>}</td>
                     <td>{r.testCaseCount === 0 ? <span className="muted">none</span> : `${r.testCaseCount} (${r.approvedTestCaseCount} approved)`}</td>
                   </tr>
-                  {open === r.id && (
-                    <tr className="static">
-                      <td colSpan={6}>
-                        <RequirementDetail id={r.id} all={items} onChanged={load} />
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
               ))}
               {items.length === 0 && (
@@ -418,6 +412,11 @@ export function RequirementsPanel({ projectId }: { projectId: string }) {
               )}
             </tbody>
           </table>
+          {open && (
+            <Drawer title={items.find((x) => x.id === open)?.ref ?? 'Details'} onClose={() => setOpen(null)}>
+              <RequirementDetail id={open} all={items} onChanged={load} />
+            </Drawer>
+          )}
         </div>
       </section>
     </div>

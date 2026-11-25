@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { DEFECT_PRIORITIES, DEFECT_STATUSES, DEFECT_STATUS_LABEL, SEVERITIES, nextDefectStatuses, type DefectStatus } from '@qavo/shared';
 import { api, type QaDefect, type QaDefectDetail, type QaDefectInput } from '../../api.ts';
 import { useLive } from '../../live.tsx';
+import { Drawer } from '../../ui.tsx';
 import { MsgLine, useMsg } from './Requirements.tsx';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -318,13 +319,6 @@ export function DefectsPanel({ projectId }: { projectId: string }) {
                     </td>
                     <td className="muted">{[d.testCaseCode, d.runCode].filter(Boolean).join(' · ') || '—'}</td>
                   </tr>
-                  {open === d.id && (
-                    <tr className="static">
-                      <td colSpan={6}>
-                        <DefectDetail id={d.id} others={items} onChanged={load} />
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
               ))}
               {items.length === 0 && (
@@ -336,6 +330,11 @@ export function DefectsPanel({ projectId }: { projectId: string }) {
               )}
             </tbody>
           </table>
+          {open && (
+            <Drawer title={items.find((x) => x.id === open)?.code ?? 'Details'} onClose={() => setOpen(null)}>
+              <DefectDetail id={open} others={items} onChanged={load} />
+            </Drawer>
+          )}
         </div>
       </section>
     </div>

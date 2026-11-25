@@ -311,6 +311,10 @@ describe('responsive: Manual QA at 360 px', () => {
       const m = await mp.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
       expect(m.sw, `${tab} scrollWidth ${m.sw} > ${m.iw}`).toBeLessThanOrEqual(m.iw);
       await shot(`qa-mobile-${tab}.png`, mp);
+      if (tab !== 'traceability') {
+        await mp.click('[data-drawer-close]'); // on a narrow screen the drawer covers the page until closed
+        await mp.waitForSelector('[data-drawer]', { state: 'detached' });
+      }
     }
     await ctx.close();
   });
