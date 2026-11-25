@@ -224,6 +224,27 @@ export interface FrameworkDetection {
   scanned: { folders: number; files: number; manifestsRead: number; truncated: boolean };
   notes: string[];
 }
+export interface AutomationScript {
+  id: string;
+  projectId: string;
+  code: string;
+  title: string;
+  framework: string;
+  status: 'draft' | 'approved' | 'rejected';
+  version: number;
+  draftedBy: string;
+  testCaseCode: string | null;
+  chars: number;
+  review: { verdict: string; by: string; at: string; notes: string; current: boolean } | null;
+  updatedAt: string;
+}
+export interface AutomationScriptDetail extends AutomationScript {
+  content: string;
+  notes: string;
+  writerReply: string;
+  decidedAt: string | null;
+  decisionNote: string;
+}
 export interface AutomationCounts {
   total: number;
   passed: number;
@@ -700,6 +721,9 @@ export const api = {
   retireRobot: (id: string) => call<{ id: string; retired: true }>('POST', `/api/robots/${id}/retire`),
   handToAgent: (id: string, playbookId: string) => call<{ code: string; draftedBy: string }>('POST', `/api/test-cases/${id}/hand-to-agent`, { playbookId }),
   detectFrameworks: (pid: string) => call<FrameworkDetection>('POST', `/api/projects/${pid}/automation/detect`, {}),
+  automationScripts: (pid: string) => call<AutomationScript[]>('GET', `/api/projects/${pid}/automation/scripts`),
+  automationScript: (id: string) => call<AutomationScriptDetail>('GET', `/api/automation/scripts/${id}`),
+  decideScript: (id: string, to: 'approved' | 'rejected', note = '') => call<AutomationScriptDetail>('POST', `/api/automation/scripts/${id}/decision`, { to, note }),
   automationRuns: (pid: string) => call<AutomationRun[]>('GET', `/api/projects/${pid}/automation/runs`),
   automationRun: (id: string) => call<AutomationRunDetail>('GET', `/api/automation/runs/${id}`),
   importAutomation: (pid: string, b: { text: string; name?: string; environment?: string; dryRun?: boolean }) => call<AutomationImportResult>('POST', `/api/projects/${pid}/automation/import`, b),

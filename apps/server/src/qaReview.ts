@@ -29,7 +29,7 @@ export interface ReviewResult {
 
 export function reviewTestCase(db: DB, testCaseId: string, input: unknown, who: RunIdentity | undefined): ReviewResult {
   if (!who) throw new HttpError(403, 'identity_required', 'Only a launched, named reviewer can record a review. Use Run this playbook on the Agents page.');
-  if (who.def.kind !== 'reviewer') throw new HttpError(403, 'not_a_reviewer', `${who.agentName} (${who.role}) is not a reviewer.`);
+  if (who.def.kind !== 'reviewer' || who.def.area !== 'manual') throw new HttpError(403, 'not_a_reviewer', `${who.agentName} (${who.role}) is not a reviewer.`);
   const parsed = Input.safeParse(input);
   if (!parsed.success) throw new HttpError(400, 'invalid_input', `Invalid fields: ${[...new Set(parsed.error.issues.map((i) => i.path.join('.') || '(root)'))].join(', ')}`);
   const notes = redact(parsed.data.notes).trim().slice(0, MAX_REVIEW_NOTES);
@@ -83,7 +83,7 @@ export interface ReviewableItem {
  */
 export function listReviewable(db: DB, who: RunIdentity | undefined): ReviewableItem[] {
   if (!who) throw new HttpError(403, 'identity_required', 'Only a launched, named reviewer can list what to review.');
-  if (who.def.kind !== 'reviewer') throw new HttpError(403, 'not_a_reviewer', `${who.agentName} (${who.role}) is not a reviewer.`);
+  if (who.def.kind !== 'reviewer' || who.def.area !== 'manual') throw new HttpError(403, 'not_a_reviewer', `${who.agentName} (${who.role}) is not a reviewer.`);
   const out: ReviewableItem[] = [];
   for (const t of qa.listTestCases(db, { projectId: who.projectId, includeArchived: false })) {
     if (t.status !== 'draft' && t.status !== 'in_review') continue;
@@ -113,7 +113,7 @@ export interface ChangesRequestedItem {
  */
 export function listMyChangesRequested(db: DB, who: RunIdentity | undefined): { items: ChangesRequestedItem[]; notYours: number } {
   if (!who) throw new HttpError(403, 'identity_required', 'Only a launched, named writer can list its own drafts.');
-  if (who.def.kind !== 'writer') throw new HttpError(403, 'not_a_writer', `${who.agentName} (${who.role}) is not a writer.`);
+  if (who.def.kind !== 'writer' || who.def.area !== 'manual') throw new HttpError(403, 'not_a_writer', `${who.agentName} (${who.role}) is not a writer.`);
   const sentBack = qa.listTestCases(db, { projectId: who.projectId, includeArchived: false }).filter((t) => t.status === 'draft' && t.review?.current && t.review.verdict === 'changes_requested');
   const items = sentBack
     .filter((t) => t.draftedBy && sameName(t.draftedBy, who.agentName))
@@ -128,9 +128,9 @@ export function listMyChangesRequested(db: DB, who: RunIdentity | undefined): { 
  * unattributed agent drafts that are still drafts; only to a writer role; and never to an agent whose name has reviewed
  * that case (a reviewer must not become its writer). The review stays valid: handing over changes no content.
  */
-export function handDraftToWriter(db: DB, testCaseId: string, writer: { agentName: string; kind: string }, actor: Actor): { code: string; draftedBy: string } {
+export function handDraftToWriter(db: DB, testCaseId: string, writer: { agentName: string; kind: string; area?: string }, actor: Actor): { code: string; draftedBy: string } {
   if (actor !== 'human') throw new HttpError(403, 'human_required', 'Only a person can hand a draft to an agent');
-  if (writer.kind !== 'writer') throw new HttpError(400, 'not_a_writer', 'A draft can only be handed to a writer agent.');
+  if (writer.kind !== 'writer' || (writer.area !== undefined && writer.area !== 'manual')) throw new HttpError(400, 'not_a_writer', 'A draft can only be handed to a writer agent.');
   const row = db.prepare('SELECT code, status, archived, authored_by, drafted_by_name FROM test_cases WHERE id = ?').get(testCaseId) as
     | { code: string; status: string; archived: number; authored_by: string; drafted_by_name: string }
     | undefined;

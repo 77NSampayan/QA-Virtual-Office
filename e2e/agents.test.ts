@@ -59,8 +59,8 @@ describe('Agents page', () => {
     expect(await page.textContent(`${card('case_writer')} [data-pb-tools]`)).toMatch(/qa_create_test_case_draft/);
     await pick('case_reviewer');
     expect(await page.textContent(`${card('case_reviewer')} [data-pb-tools]`)).not.toMatch(/qa_create_test_case_draft/);
-    await pick('automation_writer');
-    expect(await page.textContent(`${card('automation_writer')}`)).toMatch(/Arrives in Pass 3/);
+    await pick('api_writer');
+    expect(await page.textContent(`${card('api_writer')}`)).toMatch(/Arrives in Pass 3/);
     expect(await page.locator('[data-playbook] [data-pb-tools-edit], [data-playbook] input[name="tools"]').count()).toBe(0);
   });
 
@@ -128,8 +128,8 @@ describe('Run this playbook, runs, attribution and the office robot', () => {
     await page.goto(env.origin + '/#/team');
     await page.reload();
     await page.waitForSelector('[data-playbook]');
-    await pick('automation_writer');
-    expect(await page.locator(`${card('automation_writer')} [data-pb-run]`).count()).toBe(0); // not available yet: no Run button
+    await pick('api_writer');
+    expect(await page.locator(`${card('api_writer')} [data-pb-run]`).count()).toBe(0); // not available yet: no Run button
     await pick('case_writer');
     const q = card('case_writer');
     expect(await page.isDisabled(`${q} [data-pb-run]`)).toBe(true); // choose a project first

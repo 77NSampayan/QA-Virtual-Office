@@ -11,11 +11,12 @@
  *  - an audit row (tool, project, outcome; never the content) is written for every call
  */
 import { z } from 'zod';
-import { redactObject, type Actor } from '@qavo/shared';
+import { redactObject, SCRIPT_FRAMEWORKS, SCRIPT_MAX_CHARS, type Actor } from '@qavo/shared';
 import type { DB } from './db/index.ts';
 import type { RunIdentity } from './runs.ts';
 import * as qa from './qa.ts';
 import * as rv from './qaReview.ts';
+import * as sc from './qaScripts.ts';
 import * as df from './qaDefects.ts';
 import * as ex from './qaExec.ts';
 import * as wk from './qaWork.ts';
@@ -254,6 +255,64 @@ const TOOLS: Tool[] = [
     description: 'Reviewer agents only: record your review of a draft test case written by someone else. A recommendation to a person (recommend approval, or request changes with notes): it never approves or rejects anything and never changes the status.',
     fields: { project: PROJECT, code: str('Test case code, e.g. TC-0001', { req: true, max: 20 }), verdict: str('Your recommendation', { req: true, enum: VERDICTS }), notes: str('What is good, or exactly what must change (required for changes_requested)', { max: 2_000 }) },
     run: (ctx, a) => rv.reviewTestCase(ctx.db, testCaseId(ctx, s<string>(a.code)), { verdict: a.verdict, notes: a.notes ?? '' }, ctx.identity),
+  },
+  {
+    name: 'qa_get_automation_script',
+    description: 'Read one automation script draft by its code (AS-001): its text, framework, linked test case, review and status. Read-only.',
+    fields: { project: PROJECT, code: str('Script code, e.g. AS-001', { req: true, max: 20 }) },
+    run: (ctx, a) => sc.readScriptForAgent(ctx.db, ctx.projectId, s<string>(a.code)),
+  },
+  {
+    name: 'qa_create_automation_script',
+    description: 'Automation Writer only: save an automation script DRAFT for an APPROVED test case. It is stored as text in the app: nothing is run and nothing is written into the project. A different agent reviews it and only a person can approve it. Secrets and personal data in the text are masked automatically: read secrets from environment variables instead.',
+    fields: {
+      project: PROJECT,
+      title: str('Script title', { req: true, max: 200 }),
+      framework: str('The framework the project already uses', { req: true, enum: SCRIPT_FRAMEWORKS }),
+      testCaseCode: str('Code of the approved test case this automates, e.g. TC-0001', { req: true, max: 20 }),
+      content: str('The script text', { req: true, max: SCRIPT_MAX_CHARS }),
+      notes: str('Notes for the reviewer (how to run it, assumptions)', { max: 2_000 }),
+    },
+    run: (ctx, a) => {
+      const { project: _p, ...rest } = a;
+      void _p;
+      return sc.createScript(ctx.db, rest, ctx.identity);
+    },
+  },
+  {
+    name: 'qa_revise_automation_script',
+    description: 'Automation Writer only: change a script draft that YOU wrote and that is still a draft (for example after a review asked for changes). Answer the reviewer with replyToReviewer.',
+    fields: {
+      project: PROJECT,
+      code: str('Script code, e.g. AS-001', { req: true, max: 20 }),
+      title: str('New title', { max: 200 }),
+      content: str('The full replacement script text', { max: SCRIPT_MAX_CHARS }),
+      notes: str('New notes for the reviewer', { max: 2_000 }),
+      replyToReviewer: str('Your answer to the reviewer’s latest review: what you changed, or why not. Shown to the reviewer.', { max: 1_000 }),
+    },
+    run: (ctx, a) => {
+      const { project: _p, code, ...patch } = a;
+      void _p;
+      return sc.reviseScript(ctx.db, s<string>(code), patch, ctx.identity);
+    },
+  },
+  {
+    name: 'qa_list_my_script_changes',
+    description: 'Automation Writer only: your own script drafts whose latest review asks for changes, with the reviewer’s notes. Read-only.',
+    fields: { project: PROJECT },
+    run: (ctx) => cap(sc.listMyScriptChanges(ctx.db, ctx.identity)),
+  },
+  {
+    name: 'qa_list_scripts_to_review',
+    description: 'Automation Reviewer only: the script drafts you may review now (not written by you; never reviewed, or revised since the last review). Read-only.',
+    fields: { project: PROJECT },
+    run: (ctx) => cap(sc.listScriptsToReview(ctx.db, ctx.identity)),
+  },
+  {
+    name: 'qa_review_automation_script',
+    description: 'Automation Reviewer only: record your review of a script draft written by someone else. A recommendation to a person (recommend approval, or request changes with notes): it never approves or rejects anything and never changes the status.',
+    fields: { project: PROJECT, code: str('Script code, e.g. AS-001', { req: true, max: 20 }), verdict: str('Your recommendation', { req: true, enum: VERDICTS }), notes: str('What is good, or exactly what must change (required for changes_requested)', { max: 2_000 }) },
+    run: (ctx, a) => sc.reviewScript(ctx.db, s<string>(a.code), { verdict: a.verdict, notes: a.notes ?? '' }, ctx.identity),
   },
   {
     name: 'qa_list_defects',

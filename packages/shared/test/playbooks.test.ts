@@ -30,7 +30,12 @@ describe('playbook roster', () => {
   it('only reviewers have review tools, and only writers/investigators write cases', () => {
     for (const p of PLAYBOOKS) {
       const hasReview = p.tools.some((t) => REVIEW_TOOLS.includes(t));
-      expect(hasReview, p.id).toBe(p.kind === 'reviewer' && p.available);
+      expect(hasReview, p.id).toBe(p.id === 'case_reviewer'); // manual test case reviews
+    }
+    // script tools: only the automation pair, writer writes and reviewer reviews, never both
+    for (const p of PLAYBOOKS) {
+      expect(p.tools.includes('qa_create_automation_script'), p.id).toBe(p.id === 'automation_writer');
+      expect(p.tools.includes('qa_review_automation_script'), p.id).toBe(p.id === 'automation_reviewer');
     }
     for (const p of PLAYBOOKS.filter((x) => x.tools.some((t) => WRITE_TOOLS.includes(t)))) expect(p.id).toBe('case_writer');
   });
@@ -47,10 +52,11 @@ describe('playbook roster', () => {
       expect(p.checklist.length).toBeGreaterThan(0);
       expect(p.tools.length).toBeGreaterThan(0);
     }
-    for (const p of PLAYBOOKS.filter((x) => x.area === 'automation' || x.area === 'api')) {
+    for (const p of PLAYBOOKS.filter((x) => x.area === 'api')) {
       expect(p.available).toBe(false);
       expect(p.instructions[0]).toMatch(/Pass 3/);
     }
+    for (const p of PLAYBOOKS.filter((x) => x.area === 'automation')) expect(p.available, p.id).toBe(true); // since Pass 3 A4
     // anything that writes test data repeats the fake-data rule
     for (const p of PLAYBOOKS.filter((x) => x.kind !== 'analyst' && x.kind !== 'lead')) expect(p.instructions.join(' ')).toMatch(/fake or masked/i);
   });

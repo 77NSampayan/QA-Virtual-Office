@@ -407,7 +407,7 @@ describe('handing an old, unnamed agent draft to a writer (a person decides)', (
     const { id } = await sentBackOldDraft();
     const d = (await ui('GET', `/api/test-cases/${id}`)).body;
     expect(d).toMatchObject({ authoredBy: 'agent', draftedBy: '', status: 'draft', archived: false });
-    const pbs = (await ui('GET', '/api/playbooks')).body as Array<{ id: string; kind: string; available: boolean; agentName: string }>;
-    expect(pbs.filter((p) => p.kind === 'writer' && p.available).map((p) => p.agentName)).toEqual(['Quinn']);
+    const pbs = (await ui('GET', '/api/playbooks')).body as Array<{ id: string; kind: string; area: string; available: boolean; agentName: string }>;
+    expect(pbs.filter((p) => p.kind === 'writer' && p.area === 'manual' && p.available).map((p) => p.agentName)).toEqual(['Quinn']); // Axel writes scripts, not test cases
   });
 });

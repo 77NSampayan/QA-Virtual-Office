@@ -107,7 +107,7 @@ export function registerQaRoutes(app: FastifyInstance, deps: { db: DB; broadcast
   app.post<{ Params: { id: string }; Body: { playbookId?: unknown } }>('/api/test-cases/:id/hand-to-agent', async (req) => {
     if (typeof req.body?.playbookId !== 'string') throw new HttpError(400, 'invalid_input', 'playbookId must be text');
     const pb = getPlaybook(db, req.body.playbookId);
-    const r = handDraftToWriter(db, req.params.id, { agentName: pb.agentName, kind: pb.kind }, human);
+    const r = handDraftToWriter(db, req.params.id, { agentName: pb.agentName, kind: pb.kind, area: pb.area }, human);
     changed('test_case', projectOf('test_cases', req.params.id));
     return r;
   });

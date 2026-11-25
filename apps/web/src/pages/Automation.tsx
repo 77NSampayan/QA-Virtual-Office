@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AUTOMATION_CLASSIFICATIONS, AUTOMATION_CLASSIFICATION_LABEL, type AutomationClassification } from '@qavo/shared';
-import { api, type AutomationImportResult, type FrameworkDetection, type AutomationResult, type AutomationRun, type AutomationRunDetail } from '../api.ts';
+import { api, type AutomationScript, type AutomationImportResult, type FrameworkDetection, type AutomationResult, type AutomationRun, type AutomationRunDetail } from '../api.ts';
 import { useLive } from '../live.tsx';
 import { Drawer } from '../ui.tsx';
+import { ScriptDetail, ScriptsPanel } from './ScriptsPanel.tsx';
 import { MsgLine, useMsg } from './qa/Requirements.tsx';
 
 const KEY = 'qavo.automation.project';
@@ -288,13 +289,16 @@ export function Automation() {
   const current = active.find((p) => p.id === pid) ?? active[0];
   const [runs, setRuns] = useState<AutomationRun[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [openScript, setOpenScript] = useState<string | null>(null);
+  const [scripts, setScripts] = useState<AutomationScript[] | null>(null);
   const currentId = current?.id;
   const load = useCallback(() => {
     if (!currentId) return;
     void api.automationRuns(currentId).then(setRuns).catch(() => setRuns([]));
+    void api.automationScripts(currentId).then(setScripts).catch(() => setScripts([]));
   }, [currentId]);
   useEffect(load, [load, qaVersion]);
-  useEffect(() => setOpen(null), [currentId]);
+  useEffect(() => (setOpen(null), setOpenScript(null)), [currentId]);
   useEffect(() => {
     try {
       if (currentId) localStorage.setItem(KEY, currentId);
@@ -349,7 +353,7 @@ export function Automation() {
                   </thead>
                   <tbody>
                     {runs.map((r) => (
-                      <tr key={r.id} className={open === r.id ? 'selected' : ''} data-auto-run-row={r.code} onClick={() => setOpen(open === r.id ? null : r.id)}>
+                      <tr key={r.id} className={open === r.id ? 'selected' : ''} data-auto-run-row={r.code} onClick={() => (setOpenScript(null), setOpen(open === r.id ? null : r.id))}>
                         <td className="mono">{r.code}</td>
                         <td>
                           {r.name}
@@ -375,6 +379,12 @@ export function Automation() {
               </div>
             )}
           </section>
+          <ScriptsPanel scripts={scripts} open={openScript} onOpen={(id) => (setOpen(null), setOpenScript(id))} />
+          {openScript && (
+            <Drawer title={scripts?.find((x) => x.id === openScript)?.code ?? 'Script'} onClose={() => setOpenScript(null)}>
+              <ScriptDetail id={openScript} onChanged={load} />
+            </Drawer>
+          )}
           {open && (
             <Drawer title={runs?.find((r) => r.id === open)?.code ?? 'Run'} onClose={() => setOpen(null)}>
               <RunDetail id={open} onChanged={load} onDeleted={() => (setOpen(null), load())} />

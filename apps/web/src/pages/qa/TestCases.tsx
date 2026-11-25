@@ -150,7 +150,7 @@ function Detail({ id, requirements, onChanged }: { id: string; requirements: QaR
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const load = useCallback(() => void api.testCase(id).then(setD).catch(() => setD(null)), [id]);
   useEffect(load, [load, qaVersion]);
-  useEffect(() => void api.playbooks().then((p) => setWriters(p.filter((x) => x.kind === 'writer' && x.available))).catch(() => setWriters([])), [qaVersion]);
+  useEffect(() => void api.playbooks().then((p) => setWriters(p.filter((x) => x.kind === 'writer' && x.area === 'manual' && x.available))).catch(() => setWriters([])), [qaVersion]);
   void projects;
   if (!d) return <p className="muted loading" role="status">Loading…</p>;
   const act = async (fn: () => Promise<unknown>, ok: string) => {

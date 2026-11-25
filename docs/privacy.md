@@ -152,3 +152,7 @@ A person imports a JUnit XML file. Kept: suite, class and test name, status, dur
 ### Framework scan (Pass 3, A2)
 
 Only when a person presses Scan project. Reads file names (up to three folders deep, no links, no node_modules, virtualenvs or hidden folders) and, from at most 40 small dependency lists (package.json, requirements, pyproject.toml, pom.xml, build.gradle), only dependency names and declared versions. Never reads source, tests, .env files or anything else. The result (framework, evidence kind, file base name, root or subfolder, version) is shown once and not stored or logged.
+
+### Automation script drafts (Pass 3, A4)
+
+An Automation Writer agent can save the text of a script it drafted (up to 50,000 characters, with a title and notes). Like other agent-written QA text it is stored as typed after redaction: secrets, tokens, e-mail addresses and similar are masked before saving and again when an agent reads it back, and the writer is told when something was masked. Scripts are kept only in the local database and are never executed, never written into a project folder and never sent anywhere. A reviewer agent sees only the script, its linked test case and review notes.

@@ -45,7 +45,8 @@ describe('playbooks', () => {
     expect(rhea.tools).toEqual(expect.arrayContaining(['qa_review_test_case', 'qa_list_my_reviewable']));
     expect(rhea.tools).not.toContain('qa_create_test_case_draft');
     expect(list.find((p) => p.id === 'case_writer')!).toMatchObject({ reviewedBy: 'case_reviewer', available: true });
-    expect(list.find((p) => p.id === 'automation_writer')!.available).toBe(false);
+    expect(list.find((p) => p.id === 'automation_writer')!.available).toBe(true); // since Pass 3 A4
+    expect(list.find((p) => p.id === 'api_writer')!.available).toBe(false);
     expect(listPlaybooks(db)).toHaveLength(9); // calling again adds nothing
   });
 

@@ -4,6 +4,7 @@ import type { Actor } from '@qavo/shared';
 import type { Broadcast } from './collector.ts';
 import type { DB } from './db/index.ts';
 import * as au from './qaAutomation.ts';
+import * as sc from './qaScripts.ts';
 
 const human: Actor = 'human';
 
@@ -19,6 +20,14 @@ export function registerQaAutomationRoutes(app: FastifyInstance, deps: { db: DB;
   });
   // read-only scan of the registered project's folder for framework files (person-only, on demand, nothing stored)
   app.post<{ Params: { pid: string } }>('/api/projects/:pid/automation/detect', async (req) => au.detectProjectFrameworks(db, req.params.pid, human));
+  // script drafts written by the Automation Writer agent: a person reads them and approves or rejects (agents cannot)
+  app.get<{ Params: { pid: string } }>('/api/projects/:pid/automation/scripts', async (req) => sc.listScripts(db, req.params.pid));
+  app.get<{ Params: { id: string } }>('/api/automation/scripts/:id', async (req) => sc.getScript(db, req.params.id));
+  app.post<{ Params: { id: string }; Body: unknown }>('/api/automation/scripts/:id/decision', async (req) => {
+    const r = sc.decideScript(db, req.params.id, req.body, human);
+    changed(r.projectId);
+    return r;
+  });
   app.get<{ Params: { id: string } }>('/api/automation/runs/:id', async (req) => au.getRun(db, req.params.id));
   app.delete<{ Params: { id: string } }>('/api/automation/runs/:id', async (req) => {
     const pid = au.projectOfRun(db, req.params.id);

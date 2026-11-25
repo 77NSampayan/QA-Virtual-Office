@@ -14,3 +14,4 @@ export * from './testCaseImport.ts';
 export * from './playbooks.ts';
 export * from './reviews.ts';
 export * from './junit.ts';
+export * from './automationScripts.ts';

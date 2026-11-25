@@ -71,7 +71,7 @@ describe('launching a playbook', () => {
     expect((await call(asShared(), 'POST', `/api/projects/${pid}/launch-claude`, { confirm: true, playbookId: 'case_writer' })).status).toBeGreaterThanOrEqual(400);
     expect((await ui('POST', `/api/projects/${pid}/launch-claude`, { playbookId: 'case_writer' })).body.error).toBe('confirm_required');
     expect((await ui('POST', `/api/projects/${pid}/launch-claude`, { confirm: true, playbookId: 'nope' })).body.error).toBe('playbook_not_found');
-    expect((await ui('POST', `/api/projects/${pid}/launch-claude`, { confirm: true, playbookId: 'automation_writer' })).body.error).toBe('playbook_unavailable');
+    expect((await ui('POST', `/api/projects/${pid}/launch-claude`, { confirm: true, playbookId: 'api_writer' })).body.error).toBe('playbook_unavailable');
     expect((await ui('POST', `/api/projects/${pid}/launch-claude`, { confirm: true, playbookId: 7 })).body.error).toBe('invalid_input');
     await ui('PUT', '/api/settings/agent', { enabled: false });
     expect((await ui('POST', `/api/projects/${pid}/launch-claude`, { confirm: true, playbookId: 'case_writer' })).body.error).toBe('agent_access_disabled');

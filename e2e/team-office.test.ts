@@ -65,7 +65,8 @@ describe('the QA Team room', () => {
     expect(await page.getAttribute(desk(2), 'data-agent')).toBe('Rhea');
     expect(await state(1)).toBe('empty');
     expect(await state(2)).toBe('empty');
-    expect(await state(3)).toBe('later'); // Axel arrives in Pass 3
+    expect(await state(3)).toBe('empty'); // Axel is available since Pass 3 A4
+    expect(await state(5)).toBe('later'); // Piper (API tests) is still to come
     expect(await page.locator('[data-office-robots] li').count()).toBe(0); // no robot is invented for a desk
     // the canvas really draws a building with the team room in it
     const colours = await page.evaluate(() => {
