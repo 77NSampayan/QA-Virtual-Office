@@ -18,6 +18,7 @@ import { DEMO_BANNER } from './demo.ts';
 import { registerPermissionRoutes } from './permissionRoutes.ts';
 import { expireOnEvent } from './permissions.ts';
 import { registerQaExecRoutes } from './qaExecRoutes.ts';
+import { registerQaAutomationRoutes } from './qaAutomationRoutes.ts';
 import { registerQaRoutes } from './qaRoutes.ts';
 import { registerQaWorkRoutes } from './qaWorkRoutes.ts';
 import { registerRoutes, type Runtime } from './routes.ts';
@@ -273,6 +274,7 @@ export async function buildApp(opts: AppOptions): Promise<AppHandle> {
   registerPermissionRoutes(app, { db, broadcast, regeneratePolicy, installCtx: () => ({ paths, settingsPath: opts.claudeSettingsPath, ...opts.installOverrides }) });
   registerQaRoutes(app, { db, broadcast });
   registerQaExecRoutes(app, { db, broadcast, evidenceDir: paths.evidence });
+  registerQaAutomationRoutes(app, { db, broadcast });
   registerQaWorkRoutes(app, { db, broadcast });
   registerAgentRoutes(app, { db, paths, port, demo: opts.demo === true, launchClaude: opts.launchClaude ?? defaultLaunchClaude, broadcast: broadcast as (m: unknown) => void });
 

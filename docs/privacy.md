@@ -144,3 +144,7 @@ If you turn on the permission bridge, a request shows a short redacted descripti
 - A session launched from a playbook has a random **run id** in its environment. The hook forwarder adds that id (and nothing else about the run) to the sanitized event; it is validated against a fixed pattern and is not stored on events. The server uses it only to name the session's robot.
 - The **run credential** is never in an event, a log, an export or any API response. Only its SHA-256 hash is in the database; the credential itself is in a per-run MCP config file in the data folder (current-user ACL) and is deleted when the run is stopped or on the next launch.
 - The agent's activity log records the agent's name and role, the tool, the project and the outcome: never the arguments or results.
+
+## Automation results (Pass 3, A1)
+
+A person imports a JUnit XML file. Kept: suite, class and test name, status, duration and the first line of a failure message, all passed through the redaction engine and length-capped. Never kept: stack traces, system-out/system-err, screenshots, attachments, file paths or the file itself (only a hash, to refuse a duplicate import). DOCTYPE and entity declarations are ignored, never expanded. Nothing is read from project folders and nothing is sent anywhere.

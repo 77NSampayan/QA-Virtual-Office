@@ -1,18 +1,6 @@
 import { ComingSoon } from '../ui.tsx';
 
 /** Modules that are specified but not built yet. They say so plainly and show no fake data. */
-export const Automation = () => (
-  <ComingSoon
-    title="Test Automation Department"
-    pass="Pass 3"
-    intro="Framework detection, automation execution monitoring, failure investigation and CI/CD monitoring."
-    items={[
-      'Detect Playwright, Selenium, Robot Framework, pytest and respect the existing architecture',
-      'Import JUnit XML, Playwright, pytest, Robot and Allure results; failures default to "unknown" classification',
-      'Read-only GitHub Actions / Azure DevOps / Jenkins monitoring',
-    ]}
-  />
-);
 export const ApiTesting = () => (
   <ComingSoon
     title="API Testing Workspace"

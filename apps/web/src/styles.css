@@ -120,7 +120,7 @@ button.secondary { background: var(--panel2); color: var(--text); border-color: 
 button.ghost, .btnlink { background: transparent; color: var(--cyan); border: 1px solid var(--line); }
 button.ghost:hover:not(:disabled), .btnlink:hover { background: var(--panel2); filter: none; }
 button.ghost { padding: 4px 10px; }
-button.danger { color: var(--red); border-color: var(--red); }
+button.danger { background: transparent; color: var(--red); border-color: var(--red); }
 .btnlink { display: inline-block; border-radius: var(--r); padding: 6px var(--s3); text-decoration: none; }
 
 /* tabs: the current one is outlined in the brand colour instead of a second solid cyan button */

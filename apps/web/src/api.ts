@@ -211,6 +211,52 @@ export interface Playbook {
   checklist: string[];
   reviewedBy: string | null;
 }
+export interface AutomationCounts {
+  total: number;
+  passed: number;
+  failed: number;
+  errored: number;
+  skipped: number;
+}
+export interface AutomationRun {
+  id: string;
+  projectId: string;
+  code: string;
+  name: string;
+  environment: string;
+  counts: AutomationCounts;
+  passRate: { numerator: number; denominator: number; percent: number | null };
+  unclassifiedFailures: number;
+  durationMs: number;
+  importedAt: string;
+}
+export interface AutomationResult {
+  id: string;
+  suite: string;
+  className: string;
+  name: string;
+  status: 'passed' | 'failed' | 'error' | 'skipped';
+  durationMs: number;
+  message: string;
+  classification: string;
+  testCaseId: string | null;
+  testCaseCode: string | null;
+}
+export interface AutomationRunDetail extends AutomationRun {
+  results: AutomationResult[];
+}
+export interface AutomationImportResult {
+  dryRun: boolean;
+  total: number;
+  counts: AutomationCounts;
+  passRate: { numerator: number; denominator: number; percent: number | null };
+  linked: number;
+  problems: string[];
+  alreadyImported: string | null;
+  created: AutomationRun | null;
+  truncated: boolean;
+}
+
 export interface QaTestCaseImportResult {
   dryRun: boolean;
   format: string;
@@ -640,6 +686,11 @@ export const api = {
   resetPlaybook: (id: string) => call<Playbook>('POST', `/api/playbooks/${id}/reset`),
   retireRobot: (id: string) => call<{ id: string; retired: true }>('POST', `/api/robots/${id}/retire`),
   handToAgent: (id: string, playbookId: string) => call<{ code: string; draftedBy: string }>('POST', `/api/test-cases/${id}/hand-to-agent`, { playbookId }),
+  automationRuns: (pid: string) => call<AutomationRun[]>('GET', `/api/projects/${pid}/automation/runs`),
+  automationRun: (id: string) => call<AutomationRunDetail>('GET', `/api/automation/runs/${id}`),
+  importAutomation: (pid: string, b: { text: string; name?: string; environment?: string; dryRun?: boolean }) => call<AutomationImportResult>('POST', `/api/projects/${pid}/automation/import`, b),
+  classifyAutomation: (id: string, classification: string) => call<AutomationResult>('PATCH', `/api/automation/results/${id}`, { classification }),
+  deleteAutomationRun: (id: string) => call<{ deleted: true }>('DELETE', `/api/automation/runs/${id}`),
   importTestCases: (pid: string, b: { text: string; dryRun?: boolean }) => call<QaTestCaseImportResult>('POST', `/api/projects/${pid}/test-cases/import`, b),
   createTestCase: (pid: string, b: QaTestCaseInput) => call<QaTestCase>('POST', `/api/projects/${pid}/test-cases`, b),
   updateTestCase: (id: string, b: Partial<QaTestCaseInput>) => call<QaTestCase>('PATCH', `/api/test-cases/${id}`, b),
