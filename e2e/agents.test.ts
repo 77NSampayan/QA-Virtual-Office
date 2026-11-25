@@ -25,6 +25,11 @@ const api = async (method: string, url: string, payload?: unknown) => {
   return { status: r.statusCode, body: r.body ? r.json() : null };
 };
 const card = (id: string) => `[data-playbook="${id}"]`;
+/** Select an agent in the roster; its details then show beside it. */
+const pick = async (id: string) => {
+  await page.click(`[data-roster="${id}"]`);
+  await page.waitForSelector(card(id));
+};
 
 beforeAll(async () => {
   expect(fs.existsSync(path.join(ROOT, 'apps/web/dist/index.html')), 'run `npm run build:web` first').toBe(true);
@@ -45,17 +50,33 @@ afterAll(async () => {
 
 describe('Agents page', () => {
   it('shows the roster in the sidebar and page, with writer/reviewer pairs and no way to widen tools', async () => {
-    expect(await page.locator('[data-playbook]').count()).toBe(9);
+    expect(await page.locator('[data-roster]').count()).toBe(9);
+    expect(await page.locator('[data-playbook]').count()).toBe(1); // the selected agent's details
+    await pick('case_writer');
     expect(await page.locator('nav a', { hasText: 'Team' }).count()).toBe(1);
     expect(await page.textContent(`${card('case_writer')} [data-pb-title]`)).toBe('Quinn');
     expect(await page.textContent(`${card('case_writer')} [data-pb-reviewer]`)).toMatch(/Rhea \(Test Case Reviewer\)/);
-    expect(await page.textContent(`${card('case_reviewer')} [data-pb-tools]`)).not.toMatch(/qa_create_test_case_draft/);
     expect(await page.textContent(`${card('case_writer')} [data-pb-tools]`)).toMatch(/qa_create_test_case_draft/);
+    await pick('case_reviewer');
+    expect(await page.textContent(`${card('case_reviewer')} [data-pb-tools]`)).not.toMatch(/qa_create_test_case_draft/);
+    await pick('automation_writer');
     expect(await page.textContent(`${card('automation_writer')}`)).toMatch(/Arrives in Pass 3/);
     expect(await page.locator('[data-playbook] [data-pb-tools-edit], [data-playbook] input[name="tools"]').count()).toBe(0);
   });
 
+  it('previews the robot in any animation without changing anything real', async () => {
+    await pick('case_reviewer');
+    if (process.env.QAVO_E2E_SHOTS) await page.screenshot({ path: process.env.QAVO_E2E_SHOTS + '/team.png' });
+    const sprite = '[data-pb-sprite] canvas';
+    await page.selectOption('[data-pb-preview]', 'failed');
+    expect(await page.getAttribute(sprite, 'data-status')).toBe('failed');
+    await page.selectOption('[data-pb-preview]', '');
+    expect(await page.getAttribute(sprite, 'data-status')).not.toBe('failed');
+    expect(await page.getAttribute('[data-roster="case_reviewer"]', 'data-roster-live')).toBe('idle'); // the preview never makes an agent look active
+  });
+
   it('renames an agent, refuses a duplicate name, and resets', async () => {
+    await pick('case_writer');
     const q = card('case_writer');
     await page.fill(`${q} [data-pb-name]`, 'Nova');
     await page.fill(`${q} [data-pb-rules]`, 'Always add a negative case.');
@@ -107,7 +128,9 @@ describe('Run this playbook, runs, attribution and the office robot', () => {
     await page.goto(env.origin + '/#/team');
     await page.reload();
     await page.waitForSelector('[data-playbook]');
+    await pick('automation_writer');
     expect(await page.locator(`${card('automation_writer')} [data-pb-run]`).count()).toBe(0); // not available yet: no Run button
+    await pick('case_writer');
     const q = card('case_writer');
     expect(await page.isDisabled(`${q} [data-pb-run]`)).toBe(true); // choose a project first
     await page.selectOption(`${q} [data-pb-project]`, { label: 'Shop Web' });
@@ -138,6 +161,7 @@ describe('Run this playbook, runs, attribution and the office robot', () => {
     expect(await page.textContent('[data-tc-drafted-by="Quinn"]')).toMatch(/drafted by Quinn/);
 
     await page.goto(env.origin + '/#/team');
+    await pick('case_writer');
     await page.waitForFunction(() => Array.from(document.querySelectorAll('[data-robot-editor] input')).some((i) => (i as HTMLInputElement).value === 'Quinn'));
     expect((await api('GET', '/api/robots')).body.find((x: { name: string }) => x.name === 'Quinn')).toMatchObject({ robotType: 'manual_tester' });
   });
@@ -166,20 +190,23 @@ describe('Team page: agents and robots in one place', () => {
 
   it('shows an agent’s live state from its real session, and "not running" once it ends', async () => {
     await page.goto(env.origin + '/#/team');
-    await page.waitForSelector(`${card('case_writer')}`);
+    await page.waitForSelector('[data-roster="case_writer"][data-roster-live="running"]');
+    await pick('case_writer');
     await page.waitForSelector(`${card('case_writer')} [data-pb-live="running"]`);
     expect(await page.textContent(`${card('case_writer')} [data-pb-session]`)).toMatch(/Working in Shop Web/);
-    expect(await page.locator(`${card('case_reviewer')} [data-pb-live="idle"]`).count()).toBe(1); // Rhea never ran
-    expect(await page.textContent(`${card('case_reviewer')} [data-pb-live]`)).toMatch(/Not running/);
     sendEvent('s-quinn', 'SessionEnd', { reason: 'other', runId: launches[launches.length - 1]!.run!.runId });
     await page.waitForSelector(`${card('case_writer')} [data-pb-live="idle"]`);
     expect(await page.textContent(`${card('case_writer')} [data-pb-live]`)).toMatch(/Not running/);
+    expect(await page.getAttribute('[data-roster="case_reviewer"]', 'data-roster-live')).toBe('idle'); // Rhea never ran
+    await pick('case_reviewer');
+    expect(await page.textContent(`${card('case_reviewer')} [data-pb-live]`)).toMatch(/Not running/);
   });
 
   it('keeps an agent’s robot name tied to the agent, but lets its look be customised', async () => {
     const quinnBot = (await robotsApi()).find((r) => r.name === 'Quinn')!;
     expect(quinnBot.playbookId).toBe('case_writer');
     await page.goto(env.origin + '/#/team');
+    await pick('case_writer');
     await page.waitForSelector(`${card('case_writer')} [data-pb-look] [data-robot-name]`, { state: 'attached' });
     expect(await page.isDisabled(`${card('case_writer')} [data-pb-look] [data-robot-name]`)).toBe(true);
     const rename = await api('PATCH', `/api/robots/${quinnBot.id}`, { name: 'Impostor' });

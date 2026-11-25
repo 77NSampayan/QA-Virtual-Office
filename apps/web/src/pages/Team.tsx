@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ROBOT_TYPE_INFO, isRobotType, type RobotType } from '@qavo/shared';
+import { ROBOT_STATUSES, ROBOT_TYPE_INFO, STATUS_LABEL, isRobotType, type RobotStatus, type RobotType } from '@qavo/shared';
 import { api, type AgentRun, type Playbook, type Project, type Robot } from '../api.ts';
 import { useLive } from '../live.tsx';
 import { RobotEditor } from '../RobotEditor.tsx';
@@ -18,9 +18,37 @@ const AREA_TITLE: Record<Playbook['area'], string> = {
 const KIND_LABEL: Record<Playbook['kind'], string> = { analyst: 'Analyst', writer: 'Writer', reviewer: 'Reviewer', investigator: 'Investigator', lead: 'Lead' };
 const KIND_COLOR: Record<Playbook['kind'], string> = { analyst: '#6f7fe8', writer: '#3fbf9a', reviewer: '#ffd54a', investigator: '#ff9f43', lead: '#e2b93b' };
 
+/** What a playbook's robot looks like right now: its live robot if one exists, otherwise the role's default look. */
+function useLook(p: Playbook, robots: Robot[]) {
+  const { sessionOf } = useLive();
+  const live = robots.map((r) => ({ robot: r, session: sessionOf(r.id) })).filter((x) => x.session && x.session.status !== 'disconnected');
+  const shown = live[0]?.robot ?? robots[0];
+  const type: RobotType = shown && isRobotType(shown.robotType) ? shown.robotType : isRobotType(p.robotType) ? p.robotType : 'qa_analyst';
+  const palette = shown?.palette ?? ROBOT_TYPE_INFO[type].defaultPalette;
+  return { live, type, palette, status: (live[0]?.session?.status ?? 'disconnected') as RobotStatus };
+}
+
+/** One tile of the roster: pick an agent to see and change everything about it. */
+function RosterTile({ p, robots, selected, onPick }: { p: Playbook; robots: Robot[]; selected: boolean; onPick: () => void }) {
+  const { live, type, palette, status } = useLook(p, robots);
+  return (
+    <button className={`${selected ? 'roster-tile on' : 'roster-tile'}${p.available ? '' : ' later'}`} onClick={onPick} aria-pressed={selected} data-roster={p.id} data-roster-live={live.length ? 'running' : 'idle'}>
+      <span aria-hidden="true">
+        <RobotSprite type={type} status={status} palette={palette} scale={2} />
+      </span>
+      <span className="roster-text">
+        <strong>{p.agentName}</strong>
+        <span className="muted">{p.role}</span>
+      </span>
+      <span className="pill" style={{ color: KIND_COLOR[p.kind] }}>
+        {KIND_LABEL[p.kind]}
+      </span>
+    </button>
+  );
+}
+
 /** An agent: its role, what it may do, its robot and live state, its look, and the controls to run it. */
 function AgentCard({ p, roleOf, onChanged, projects, robots, onLaunched }: { p: Playbook; roleOf: (id: string | null) => string | null; onChanged: () => void; projects: Project[]; robots: Robot[]; onLaunched: () => void }) {
-  const { sessionOf } = useLive();
   const now = useNow();
   const [name, setName] = useState(p.agentName);
   const [projectId, setProjectId] = useState('');
@@ -31,16 +59,26 @@ function AgentCard({ p, roleOf, onChanged, projects, robots, onLaunched }: { p: 
   const aliasOf = (id: string | null) => projects.find((x) => x.id === id)?.alias ?? 'a project';
 
   // Live state comes only from real sessions: a robot is "running" while its latest session has not disconnected.
-  const live = robots.map((r) => ({ robot: r, session: sessionOf(r.id) })).filter((x) => x.session && x.session.status !== 'disconnected');
-  const shown = live[0]?.robot ?? robots[0];
-  const type: RobotType = shown && isRobotType(shown.robotType) ? shown.robotType : isRobotType(p.robotType) ? p.robotType : 'qa_analyst';
-  const palette = shown?.palette ?? ROBOT_TYPE_INFO[type].defaultPalette;
+  const { live, type, palette } = useLook(p, robots);
+  const [preview, setPreview] = useState<RobotStatus | ''>('');
 
   return (
     <section className="card" data-playbook={p.id} data-agent-name={p.agentName} style={{ minWidth: 0 }}>
-      <div className="row" style={{ alignItems: 'center', flexWrap: 'nowrap' }}>
-        <div data-pb-sprite style={{ flex: '0 0 auto' }} aria-hidden="true">
-          <RobotSprite type={type} status={live[0]?.session?.status ?? 'disconnected'} palette={palette} scale={3} />
+      <div className="char-head">
+        <div className="char-stage" data-pb-sprite>
+          <RobotSprite type={type} status={preview || (live[0]?.session?.status ?? 'idle')} palette={palette} scale={8} />
+          <label className="char-preview">
+            Preview animation
+            <select value={preview} onChange={(e) => setPreview(e.target.value as RobotStatus | '')} data-pb-preview aria-label={`Preview of ${p.agentName}'s robot`}>
+              <option value="">Current</option>
+              {ROBOT_STATUSES.map((st) => (
+                <option key={st} value={st}>
+                  {STATUS_LABEL[st]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="muted">A preview of the look only. It is not live activity.</span>
         </div>
         <h3 style={{ margin: 0, minWidth: 0 }}>
           <span data-pb-title>{p.agentName}</span> <span className="muted">· {p.role}</span>{' '}
@@ -189,6 +227,7 @@ export function Team() {
   const [items, setItems] = useState<Playbook[] | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [sel, setSel] = useState<string | null>(null);
   const m = useMsg();
   const load = useCallback(() => {
     void api.playbooks().then(setItems).catch(() => setItems([]));
@@ -202,6 +241,7 @@ export function Team() {
     return p ? `${p.agentName} (${p.role})` : null;
   };
   const areas = [...new Set(items.map((p) => p.area))];
+  const current = items.find((p) => p.id === sel) ?? items[0]!;
   const others = robots.filter((r) => !r.playbookId);
   return (
     <div className="page" data-page="team">
@@ -219,18 +259,23 @@ export function Team() {
           </p>
         </section>
       )}
-      {areas.map((a) => (
-        <div key={a} data-area={a}>
-          <h3>{AREA_TITLE[a]}</h3>
-          <div data-panel-grid style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))' }}>
-            {items
-              .filter((p) => p.area === a)
-              .map((p) => (
-                <AgentCard key={p.id} p={p} roleOf={nameOf} onChanged={load} projects={projects} robots={robots.filter((r) => r.playbookId === p.id)} onLaunched={load} />
-              ))}
-          </div>
+      <div className="team-split">
+        <nav className="roster" aria-label="Agents" data-roster-list>
+          {areas.map((a) => (
+            <div key={a} data-area={a}>
+              <h3>{AREA_TITLE[a]}</h3>
+              {items
+                .filter((p) => p.area === a)
+                .map((p) => (
+                  <RosterTile key={p.id} p={p} robots={robots.filter((r) => r.playbookId === p.id)} selected={current.id === p.id} onPick={() => setSel(p.id)} />
+                ))}
+            </div>
+          ))}
+        </nav>
+        <div className="char-detail">
+          <AgentCard key={current.id} p={current} roleOf={nameOf} onChanged={load} projects={projects} robots={robots.filter((r) => r.playbookId === current.id)} onLaunched={load} />
         </div>
-      ))}
+      </div>
 
       <h3>Other sessions</h3>
       <p className="hint" data-others>
