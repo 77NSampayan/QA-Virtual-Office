@@ -23,6 +23,17 @@ export function registerQaCiRoutes(app: FastifyInstance, deps: { db: DB; broadca
     changed(r.connection.projectId);
     return r;
   });
+  app.get<{ Params: { id: string } }>('/api/ci/connections/:id/runs', async (req) => ci.listRuns(db, deps.ci, req.params.id));
+  app.post<{ Params: { id: string }; Body: unknown }>('/api/ci/connections/:id/refresh', SMALL, async (req) => {
+    const r = await ci.refreshRuns(db, deps.ci, req.params.id, req.body, human);
+    changed(r.connection.projectId);
+    return r;
+  });
+  app.put<{ Params: { id: string }; Body: unknown }>('/api/ci/connections/:id/polling', SMALL, async (req) => {
+    const r = ci.setPolling(db, deps.ci, req.params.id, req.body, human);
+    changed(r.projectId);
+    return r;
+  });
   app.put<{ Params: { id: string }; Body: unknown }>('/api/ci/connections/:id/token', SMALL, async (req) => {
     const r = await ci.replaceToken(db, deps.ci, req.params.id, req.body, human);
     changed(r.projectId);

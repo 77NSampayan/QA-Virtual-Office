@@ -72,7 +72,7 @@ describe('provider rules', () => {
   });
 
   it('turns answers into plain sentences that never contain provider text or the token', () => {
-    const base = { json: null, rateLimited: false, redirected: false, tooLarge: false };
+    const base = { json: null, etag: null, notModified: false, retryAfterMs: null, rateLimited: false, redirected: false, tooLarge: false };
     const cases: Array<[string, Parameters<typeof interpretTest>[1], boolean, RegExp]> = [
       ['github', { ...base, status: 200, json: { workflow_runs: [] } }, true, /Connected/],
       ['github', { ...base, status: 401, json: { message: `Bad credentials ${GH_TOKEN}` } }, false, /rejected the token/],

@@ -164,3 +164,7 @@ Test data profiles are for FAKE data only. A fixed value that looks like real pe
 ### CI/CD connections (Pass 3, A3a)
 
 What leaves this computer: an HTTPS request to `api.github.com` or `dev.azure.com` containing the access token and the repository (or organisation and project) name you typed, plus a generic client name. No project alias, folder path, user name, machine name, QA record or test data is sent. What is stored: provider, the target name you typed and the result of the last connection test. The token is stored only in Windows protected storage, never in the database, backups, exports or logs. This step reads no pipeline data at all; it only checks that the connection works.
+
+### CI/CD runs (Pass 3, A3b)
+
+Read only when a person presses Refresh runs, or while automatic refresh is switched on (off by default; every 5 minutes at most; it stops by itself after 2 hours without a click). Kept for the latest 30 runs per connection and no older than 30 days: the provider's run id, pipeline name, branch, status, start and finish time, the first 7 characters of the commit id and a link on the provider's own website. Never read or kept: who triggered the run, commit messages, pull request titles, logs, artifacts. Text that is kept is passed through the redaction engine. Disconnecting deletes the saved runs and the token.

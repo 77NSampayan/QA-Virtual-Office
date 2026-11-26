@@ -23,7 +23,25 @@ let ghStatus = 200;
 const fakeFetch = (async (url: string) => {
   calls.push(String(url));
   const u = new URL(String(url));
-  if (u.hostname === 'api.github.com') return new Response(JSON.stringify(ghStatus === 200 ? { workflow_runs: [] } : { message: 'Bad credentials' }), { status: ghStatus, headers: { 'content-type': 'application/json' } });
+  if (u.hostname === 'api.github.com') {
+    const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const run = (id: number, extra: Record<string, unknown> = {}) => ({
+      id,
+      name: 'CI',
+      display_title: 'Fix login for maria.santos@gmail.com',
+      head_branch: 'main',
+      head_sha: 'abcdef0123456789abcdef0123456789abcdef01',
+      status: 'completed',
+      conclusion: 'success',
+      run_started_at: ago(30),
+      updated_at: ago(25),
+      html_url: `https://github.com/octo-org/shop-web/actions/runs/${id}`,
+      actor: { login: 'maria-santos' },
+      head_commit: { message: 'Secret commit message', author: { name: 'Juan dela Cruz' } },
+      ...extra,
+    });
+    return new Response(JSON.stringify(ghStatus === 200 ? { workflow_runs: [run(1), run(2, { conclusion: 'failure', name: 'Deploy' })] } : { message: 'Bad credentials' }), { status: ghStatus, headers: { 'content-type': 'application/json' } });
+  }
   if (u.hostname === 'dev.azure.com') return new Response(JSON.stringify({ value: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
   throw new Error('unexpected host ' + u.hostname);
 }) as unknown as typeof fetch;
@@ -109,6 +127,59 @@ describe('CI/CD connections', () => {
     expect(secrets.all()).not.toContain(GH_TOKEN);
   });
 
+  it('refreshes the runs: pipeline, branch, status, commit, duration and a provider link; no person, no commit message, no PR title', async () => {
+    const row = page.locator('[data-ci-connection="github:octo-org/shop-web"]');
+    expect(await row.locator('[data-ci-asof]').textContent()).toMatch(/No runs read yet/);
+    await row.locator('[data-ci-refresh]').click();
+    await row.locator('[data-ci-run="passed"]').waitFor();
+    const text = (await row.textContent()) ?? '';
+    expect(text).toMatch(/Passed.*CI.*main.*abcdef0/s);
+    expect(text).toMatch(/Failed.*Deploy/s);
+    expect(text).toMatch(/Runs as of/);
+    expect(await row.locator('[data-ci-run="passed"] a').getAttribute('href')).toBe('https://github.com/octo-org/shop-web/actions/runs/1');
+    expect(await row.locator('[data-ci-run="passed"] a').getAttribute('rel')).toMatch(/noopener/);
+    const html = await page.content();
+    expect(html).not.toMatch(/maria|Juan|Secret commit|gmail|abcdef0123456789/i);
+    if (process.env.QAVO_E2E_SHOTS) await page.screenshot({ path: path.join(process.env.QAVO_E2E_SHOTS, 'ci-runs.png') });
+  });
+
+  it('when a refresh fails the saved runs stay, marked as of their last good read, with our own explanation', async () => {
+    const row = page.locator('[data-ci-connection="github:octo-org/shop-web"]');
+    ghStatus = 401;
+    await page.waitForTimeout(10_200); // manual refresh is limited to once every 10 seconds
+    await row.locator('[data-ci-refresh]').click();
+    await row.locator('[data-ci-refresh-error]').waitFor();
+    expect(await row.locator('[data-ci-refresh-error]').textContent()).toMatch(/rejected the token.*last successful read/s);
+    expect(await row.locator('[data-ci-run]').count()).toBe(2);
+    expect(await row.textContent()).not.toMatch(/Bad credentials/);
+    ghStatus = 200;
+  });
+
+  it('auto-refresh is off until switched on, shows when it stops, and the 5 minute timer asks the server (which enforces the minimum itself)', async () => {
+    const row = page.locator('[data-ci-connection="github:octo-org/shop-web"]');
+    expect(await row.locator('[data-ci-polling]').isChecked()).toBe(false);
+    expect(await row.locator('[data-ci-polling-note]').count()).toBe(0);
+    await page.clock.install();
+    const polls: Array<{ body: string; status: number }> = [];
+    page.on('response', async (res) => {
+      if (res.url().endsWith('/refresh') && res.request().method() === 'POST') polls.push({ body: res.request().postData() ?? '', status: res.status() });
+    });
+    await row.locator('[data-ci-polling]').click();
+    await row.locator('[data-ci-polling-note]').waitFor();
+    expect(await row.locator('[data-ci-polling-note]').textContent()).toMatch(/stops by itself at/);
+    await page.clock.runFor(4 * 60_000);
+    expect(polls).toHaveLength(0); // nothing before 5 minutes
+    await page.clock.runFor(2 * 60_000);
+    await page.waitForFunction(() => true);
+    await expect.poll(() => polls.length, { timeout: 5000 }).toBe(1);
+    expect(JSON.parse(polls[0]!.body)).toEqual({ polling: true });
+    expect(polls[0]!.status).toBe(429); // the server refuses: its own 5 minutes (real time) have not passed
+    await row.locator('[data-ci-polling]').click();
+    await row.locator('[data-ci-polling-note]').waitFor({ state: 'detached' });
+    await page.clock.runFor(10 * 60_000);
+    expect(polls).toHaveLength(1); // switched off: no more requests
+  });
+
   it('disconnecting deletes the token and the connection', async () => {
     const before = secrets.size();
     page.once('dialog', (d) => void d.accept());
@@ -127,6 +198,8 @@ describe('CI/CD connections', () => {
     await page.setViewportSize({ width: 360, height: 800 });
     await page.reload();
     await page.waitForSelector('[data-ci] [data-ci-connect]');
+    const over = await page.evaluate(() => [...document.querySelectorAll('[data-ci] *')].filter((e) => !e.closest('.scroll-x') && e.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 6).map((e) => e.tagName + '.' + e.className + ' ' + (e.textContent ?? '').slice(0, 30)));
+    expect(over, over.join(' | ')).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     await page.setViewportSize({ width: 1366, height: 768 });
   });

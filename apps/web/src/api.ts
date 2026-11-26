@@ -280,6 +280,27 @@ export interface CiConnection {
   lastTestedAt: string | null;
   lastTestOk: boolean | null;
   lastTestMessage: string;
+  runsAsOf: string | null;
+  lastRefreshAt: string | null;
+  lastRefreshOk: boolean | null;
+  lastRefreshMessage: string;
+  pollingEnabled: boolean;
+  pollingUntil: string | null;
+}
+export interface CiRun {
+  id: string;
+  name: string;
+  branch: string;
+  status: 'queued' | 'running' | 'passed' | 'failed' | 'cancelled' | 'other';
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  sha7: string;
+  url: string;
+}
+export interface CiRuns {
+  connection: CiConnection;
+  runs: CiRun[];
 }
 export interface AutomationCounts {
   total: number;
@@ -770,6 +791,9 @@ export const api = {
   connectCi: (pid: string, b: { provider: string; owner: string; name: string; token: string }) => call<CiConnection>('POST', `/api/projects/${pid}/ci/connections`, b),
   testCi: (id: string) => call<{ connection: CiConnection; ok: boolean; message: string }>('POST', `/api/ci/connections/${id}/test`, {}),
   replaceCiToken: (id: string, token: string) => call<CiConnection>('PUT', `/api/ci/connections/${id}/token`, { token }),
+  ciRuns: (id: string) => call<CiRuns>('GET', `/api/ci/connections/${id}/runs`),
+  refreshCi: (id: string, polling = false) => call<CiRuns & { ok: boolean; message: string }>('POST', `/api/ci/connections/${id}/refresh`, { polling }),
+  setCiPolling: (id: string, enabled: boolean) => call<CiConnection>('PUT', `/api/ci/connections/${id}/polling`, { enabled }),
   disconnectCi: (id: string) => call<{ disconnected: true }>('DELETE', `/api/ci/connections/${id}`),
   automationRuns: (pid: string) => call<AutomationRun[]>('GET', `/api/projects/${pid}/automation/runs`),
   automationRun: (id: string) => call<AutomationRunDetail>('GET', `/api/automation/runs/${id}`),
